@@ -63,6 +63,6 @@ function renderSmart(){
  smartField(move,'원본 경로 (기준 폴더 기준)','source','');smartField(move,'대상 전체 경로 (기준 폴더 기준)','target','');
  move.append(make('p','smart-note','목록의 선택 버튼으로 원본을 지정하세요. 대상 폴더는 먼저 생성해야 합니다. 날짜와 분류는 위 문서 양식의 값을 사용합니다.'));
  btn(move,'이동/이름 변경',()=>{smartRemember();smartMutation('move',{source:smartData('source'),target:smartData('target'),category:smartData('category'),date:smartData('date')})},'primary');
- btn(move,'아카이브 보관',()=>{smartRemember();smartMutation('archive',{source:smartData('source')})});
- btn(move,'텍스트 수정본 저장',()=>{smartRemember();smartMutation('revise',{source:smartData('source'),text:smartData('text')})});forms.append(move);panel.append(forms);
+ btn(move,'보관',()=>{smartRemember();smartMutation('archive',{source:smartData('source')})});
+ btn(move,'수정본 저장',()=>{smartRemember();smartMutation('revise',{source:smartData('source'),text:smartData('text')})});forms.append(move);for(const card of forms.children){const actions=make('div','smart-actions');actions.append(...card.querySelectorAll(':scope>button'));card.append(actions)}panel.append(forms);
 }

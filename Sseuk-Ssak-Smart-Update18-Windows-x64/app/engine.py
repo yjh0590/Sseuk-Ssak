@@ -1,31 +1,35 @@
 """Local scanner and reversible staging area. Python 3.9+."""
+
 from analysis_views import grouped, folder_index
 import hashlib
 import re
 import os
 import stat
-import uuid
 import zipfile
 import zlib
 from collections import defaultdict, namedtuple
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HOLD = "_ODDZ_정리보관함"
-Row = namedtuple("Row", "kind path size stamp detail keep group", defaults=(None,None))
+Row = namedtuple("Row", "kind path size stamp detail keep group", defaults=(None, None))
 APP = Path(__file__).resolve().parent
 CHUNK = 1024 * 1024
 DEVICES = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | {
     prefix + digit for prefix in ("COM", "LPT") for digit in "0123456789¹²³"
 }
 
+
 def plain(path):
     s = path.lstat()
     return not (stat.S_ISLNK(s.st_mode) or getattr(s, "st_file_attributes", 0) & 0x400)
+
 
 def safe(root, p):
     if not p.is_relative_to(root) or p == root:
         return False
     return all(plain(a) for a in (p, *p.parents) if a.is_relative_to(root))
+
 
 def digest(stream):
     h = hashlib.sha256()
@@ -33,13 +37,16 @@ def digest(stream):
         h.update(buf)
     return h.digest()
 
+
 def signature(p):
     s = p.stat()
     return (s.st_size, s.st_mtime_ns, s.st_dev, s.st_ino)
 
+
 def filehash(p):
     with p.open("rb") as f:
         return digest(f)
+
 
 def zipcheck(root, p):
     folder = p.with_suffix("")
@@ -53,9 +60,18 @@ def zipcheck(root, p):
         seen = set()
         for i in infos:
             parts = i.filename.rstrip("/").split("/")
-            if (any(not x or x in {".", ".."} or x.endswith((" ", ".")) or
-                    any(c in x for c in '\\:<>"|?*') or x.split('.')[0].rstrip().upper() in DEVICES for x in parts)
-                    or stat.S_ISLNK(i.external_attr >> 16) or i.flag_bits & 1):
+            if (
+                any(
+                    not x
+                    or x in {".", ".."}
+                    or x.endswith((" ", "."))
+                    or any(c in x for c in '\\:<>"|?*')
+                    or x.split('.')[0].rstrip().upper() in DEVICES
+                    for x in parts
+                )
+                or stat.S_ISLNK(i.external_attr >> 16)
+                or i.flag_bits & 1
+            ):
                 return False, "특수 경로 또는 암호화 항목", folder
             key = tuple(x.casefold() for x in parts)
             if key in seen:
@@ -76,14 +92,17 @@ def zipcheck(root, p):
             count += 1
         return bool(count), f"ZIP 안의 파일 {count}개가 폴더에 모두 있음", folder
 
+
 def scan(root, progress=lambda s: None, folder_data=None, across=False):
     root = Path(root).absolute()
     if root == Path(root.anchor) or not plain(root) or root.is_relative_to(APP) or HOLD in root.parts:
         raise ValueError("다운로드나 문서처럼 검사할 개인 폴더를 선택해 주세요.")
     files, errors, rows = {}, [], []
     sizes, names = defaultdict(list), defaultdict(list)
+
     def onerror(e):
         errors.append(str(e))
+
     visited = []
     for folder, dirs, leaves in os.walk(root, onerror=onerror):
         base = Path(folder)
@@ -91,38 +110,57 @@ def scan(root, progress=lambda s: None, folder_data=None, across=False):
         good = []
         for d in dirs:
             try:
-                if d.casefold() != HOLD.casefold() and base/d != APP and plain(base/d):
+                if d.casefold() != HOLD.casefold() and base / d != APP and plain(base / d):
                     good.append(d)
             except OSError as e:
                 onerror(e)
         dirs[:] = good
         for n in leaves:
-            if n.casefold()=="desktop.ini":continue
-            p = base/n
+            if n.casefold() == "desktop.ini":
+                continue
+            p = base / n
             try:
                 if not plain(p) or not p.is_file():
                     continue
                 sig = signature(p)
                 files[p] = sig
                 sizes[sig[0]].append(p)
-                names[(None if across else base, re.sub(r"\s*\(\d+\)$", "", p.stem).casefold(), p.suffix.casefold())].append(p)
+                names[
+                    (None if across else base, re.sub(r"\s*\(\d+\)$", "", p.stem).casefold(), p.suffix.casefold())
+                ].append(p)
             except OSError as e:
                 onerror(e)
         progress(f"목록 확인 중 · {len(files):,}개")
+
     def add(kind, p, note, keep=None):
         rows.append(Row(kind, p, files[p][0], files[p], note, keep))
+
     def newest(group):
         return sorted(group, key=lambda p: (-files[p][1], str(p).casefold(), str(p)))
-    for group in sizes.values():
-        if len(group) < 2:
-            continue
+
+    # 빈 파일은 해시가 모두 같아 복사본이 아님
+    groups = [g for n, g in sizes.items() if n and len(g) > 1]
+
+    def hash_one(p):
+        try:
+            return p, filehash(p), None
+        except OSError as e:
+            return p, None, e
+
+    hashes = {}
+    # ponytail: 스레드 수는 기본값. HDD에서 큰 파일이 많으면 탐색이 늘어 느려질 수 있음 → 그때 max_workers를 줄일 것
+    with ThreadPoolExecutor() as pool:
+        for p, h, e in pool.map(hash_one, [p for g in groups for p in g]):
+            progress("내용 비교 · " + p.name)
+            if e:
+                onerror(e)
+            else:
+                hashes[p] = h
+    for group in groups:
         same = defaultdict(list)
         for p in group:
-            progress("내용 비교 · " + p.name)
-            try:
-                same[filehash(p)].append(p)
-            except OSError as e:
-                onerror(e)
+            if p in hashes:
+                same[hashes[p]].append(p)
         for g in same.values():
             keep, *others = newest(g)
             for p in others:
@@ -133,8 +171,14 @@ def scan(root, progress=lambda s: None, folder_data=None, across=False):
             tied = files[keep][1] == files[others[0]][1]
             group = str(keep)
             for p in newest(g):
-                note = "날짜가 같아 직접 확인이 필요해요" if tied else ("남길 최신 파일" if p == keep else "오래된 파일 · 남길 파일 " + str(keep))
-                rows.append(Row("같은 이름", p, files[p][0], files[p], note, None if tied or p == keep else keep, group))
+                note = (
+                    "날짜가 같아 직접 확인이 필요해요"
+                    if tied
+                    else ("남길 최신 파일" if p == keep else "오래된 파일 · 남길 파일 " + str(keep))
+                )
+                rows.append(
+                    Row("같은 이름", p, files[p][0], files[p], note, None if tied or p == keep else keep, group)
+                )
     for p in files:
         add("전체 파일", p, "직접 선택한 파일만 휴지통으로 이동해요")
     for p in files:
@@ -149,17 +193,18 @@ def scan(root, progress=lambda s: None, folder_data=None, across=False):
                 errors.append(f"{p}: {e}")
     for p in sorted(files, key=lambda p: -files[p][0])[:30]:
         add("큰 파일", p, "크기순 상위 30개 · 직접 검토")
-    for kind,p,group,reason in grouped(files):
-        rows.append(Row(kind,p,files[p][0],files[p],reason,None,group))
+    for kind, p, group, reason in grouped(files):
+        rows.append(Row(kind, p, files[p][0], files[p], reason, None, group))
     if folder_data is not None and root in visited:
-        folder_data.append(folder_index(root,visited,files))
+        folder_data.append(folder_index(root, visited, files))
     return rows, len(files), errors
+
 
 def validate_row(root, row):
     p = row.path
-    if p.name.casefold()=="desktop.ini":raise ValueError("Windows 폴더 표시 설정 파일은 보호해요.")
-    if (not safe(root, p) or not p.is_file() or signature(p) != row.stamp
-            or row.kind == "ZIP 확인"):
+    if p.name.casefold() == "desktop.ini":
+        raise ValueError("Windows 폴더 표시 설정 파일은 보호해요.")
+    if not safe(root, p) or not p.is_file() or signature(p) != row.stamp or row.kind == "ZIP 확인":
         raise ValueError("파일이 바뀌었거나 보관할 수 없는 항목입니다.")
     if row.keep and not safe(root, row.keep):
         raise ValueError("남길 파일 경로를 확인할 수 없습니다.")
@@ -174,11 +219,6 @@ def validate_row(root, row):
         if not check or not check[0]:
             raise ValueError("압축 내용이 달라졌습니다.")
 
-def stage(root, row, batch):
-    validate_row(root,row)
-    p = row.path
-    dest = root/HOLD/batch/p.relative_to(root)
-    relocate(root, p, dest)
 
 def relocate(root, src, dest):
     if not safe(root, src) or not src.is_file():
@@ -194,20 +234,23 @@ def relocate(root, src, dest):
     # On Windows rename fails if another file appears at dest.
     src.rename(dest)
 
+
 def held(root):
-    folder = root/HOLD
+    folder = root / HOLD
     if not folder.exists() or not safe(root, folder):
         return []
     items = []
     for base, dirs, names in os.walk(folder):
         b = Path(base)
-        dirs[:] = [d for d in dirs if plain(b/d)]
+        dirs[:] = [d for d in dirs if plain(b / d)]
         for n in names:
-            p = b/n
+            p = b / n
             parts = p.relative_to(folder).parts
-            if len(parts) >= 2 and len(parts[0]) == 32 and all(c in "0123456789abcdef" for c in parts[0]) and safe(root, p):
+            if (
+                len(parts) >= 2
+                and len(parts[0]) == 32
+                and all(c in "0123456789abcdef" for c in parts[0])
+                and safe(root, p)
+            ):
                 items.append((p, root.joinpath(*parts[1:])))
     return items
-
-def newbatch():
-    return uuid.uuid4().hex

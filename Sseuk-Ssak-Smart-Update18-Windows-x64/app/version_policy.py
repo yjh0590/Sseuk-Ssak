@@ -1,4 +1,5 @@
 """Choose one keeper per download-version group without deleting files."""
+
 import re
 from collections import defaultdict
 
@@ -29,10 +30,16 @@ def choose(rows, mode='date', overrides=None):
             reason = '수정 날짜 기준' if mode == 'date' else '괄호 숫자 기준'
         for row in items:
             if keep is None:
-                detail = '남길 파일을 직접 지정해 주세요' if mode == 'manual' else '최고 기준값이 같아요 · 남길 파일을 직접 지정해 주세요'
+                detail = (
+                    '남길 파일을 직접 지정해 주세요'
+                    if mode == 'manual'
+                    else '최고 기준값이 같아요 · 남길 파일을 직접 지정해 주세요'
+                )
             elif row.path == keep.path:
                 detail = '남길 파일 · ' + reason
             else:
                 detail = '정리 대상 · 남길 파일 ' + keep.path.name
-            replacements[row.path] = row._replace(keep=keep.path if keep and row.path != keep.path else None, detail=detail)
+            replacements[row.path] = row._replace(
+                keep=keep.path if keep and row.path != keep.path else None, detail=detail
+            )
     return [replacements[r.path] if r.kind == '같은 이름' else r for r in rows]
