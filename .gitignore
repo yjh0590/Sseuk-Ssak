@@ -9,3 +9,6 @@ Sseuk-Ssak-*/크롬 다운로드 연결 도우미/pair.json
 # 빌드 산출물: py -3.13 build.py runtime / dist 로 만든다
 Sseuk-Ssak-*/app/python/
 dist/
+
+# 런타임 빌드 캐시 (python.org MSI)
+build/

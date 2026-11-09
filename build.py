@@ -1,20 +1,27 @@
-"""배포 준비 스크립트. 저장소에는 소스만 두고, 런타임과 ZIP은 여기서 만든다.
+"""배포 준비 스크립트. 저장소에는 소스만 두고, 런타임과 ZIP은 여기서 만든다. (Python 3.9+ 아무 버전으로 실행)
 
-  py -3.13 build.py runtime   이 Python 3.13 설치본에서 app/python 런타임을 다시 복사
-  py -3.13 build.py dist      dist/ 에 배포용 ZIP 생성 (런타임이 없으면 먼저 복사)
+  py build.py runtime   python.org 공식 MSI(서명 검증)에서 app/python 런타임을 만든다 (인터넷 필요)
+  py build.py dist      dist/ 에 배포용 ZIP 생성 (런타임이 없으면 먼저 만든다)
 
 쓱-싹.exe가 app/python/pythonw.exe -E -s -B desktop.py 를 실행하므로 런타임 위치는 고정이다.
 """
 
 import json
+import os
 import shutil
+import subprocess
 import sys
+import urllib.request
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 PKG = next(ROOT.glob('Sseuk-Ssak-*-Windows-x64'))
 RUNTIME = PKG / 'app' / 'python'
+# python.org에 서명된 Windows 바이너리가 있는 최신 3.13. 3.13.18부터는 보안 수정 전용이라 소스만 배포된다.
+PY_VERSION = '3.13.17'
+MSIS = ('core', 'exe', 'lib', 'tcltk')
+CACHE = ROOT / 'build' / f'python-{PY_VERSION}'
 TOP_FILES = [
     'python.exe',
     'pythonw.exe',
@@ -28,25 +35,57 @@ TOP_FILES = [
 PERSONAL = {'chrome-last-result.json', 'pair.json', 'display-backup', '__pycache__'}
 
 
+def verify(path, publisher='Python Software Foundation'):
+    """Authenticode 서명이 유효하고 서명자가 publisher인지 확인한다."""
+    r = subprocess.run(
+        [
+            'powershell.exe',
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            '$s=Get-AuthenticodeSignature -LiteralPath $env:SIGNED_FILE; "$($s.Status)|$($s.SignerCertificate.Subject)"',
+        ],
+        env={**os.environ, 'SIGNED_FILE': str(path)},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    status, _, subject = r.stdout.strip().partition('|')
+    if status != 'Valid' or not subject.startswith(f'CN={publisher},'):
+        sys.exit(f'서명 검증 실패: {path} ({status or r.stderr.strip()} {subject})')
+
+
 def runtime():
-    if sys.version_info[:2] != (3, 13):
-        sys.exit('Python 3.13으로 실행해 주세요: py -3.13 build.py runtime')
-    src = Path(sys.base_prefix)
+    msi_dir, staging = CACHE / 'msi', CACHE / 'files'
+    msi_dir.mkdir(parents=True, exist_ok=True)
+    for name in MSIS:
+        msi = msi_dir / f'{name}.msi'
+        if not msi.exists():
+            print(f'다운로드: {name}.msi')
+            urllib.request.urlretrieve(f'https://www.python.org/ftp/python/{PY_VERSION}/amd64/{name}.msi', msi)
+        verify(msi)
+    if staging.exists():
+        shutil.rmtree(staging)
+    for name in MSIS:  # 관리자 설치(/a): 시스템에 설치하지 않고 파일만 푼다
+        subprocess.run(f'msiexec /a "{msi_dir / name}.msi" /qn TARGETDIR="{staging}"', check=True)
 
     def skip(directory, names):
-        out = {n for n in names if n == '__pycache__' or n.endswith(('.lib', '.ico', '.cat'))}
-        if Path(directory) == src / 'Lib':
-            out |= {'test', 'site-packages'}  # 표준 라이브러리 테스트와 사용자 설치 패키지는 제외
+        out = {n for n in names if n == '__pycache__' or n.endswith(('.lib', '.ico', '.cat', '.msi'))}
+        if Path(directory) == staging / 'Lib':
+            out.add('site-packages')
+        if Path(directory) == staging / 'tcl':
+            out.add('nmake')  # Tcl 빌드 도구. 실행에 쓰이지 않고 공식 MSI에서도 서명이 없다
         return out
 
     if RUNTIME.exists():
         shutil.rmtree(RUNTIME)
     RUNTIME.mkdir(parents=True)
     for name in TOP_FILES:
-        shutil.copy2(src / name, RUNTIME / name)
+        shutil.copy2(staging / name, RUNTIME / name)
     for name in ('DLLs', 'Lib', 'tcl'):
-        shutil.copytree(src / name, RUNTIME / name, ignore=skip)
-    print(f'런타임 복사 완료: Python {sys.version.split()[0]} → {RUNTIME}')
+        shutil.copytree(staging / name, RUNTIME / name, ignore=skip)
+    verify(RUNTIME / 'python.exe')
+    print(f'런타임 준비 완료: 공식 서명된 Python {PY_VERSION} → {RUNTIME}')
 
 
 def dist():
