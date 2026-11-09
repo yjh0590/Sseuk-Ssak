@@ -1,0 +1,10 @@
+# 개발용 포매터 설정: ruff format / ruff check
+line-length = 120
+extend-exclude = ["Sseuk-Ssak-*/app/python"]
+
+[format]
+quote-style = "preserve"
+
+[lint]
+select = ["E", "F"]
+ignore = ["E501", "E701", "E702", "E731"]

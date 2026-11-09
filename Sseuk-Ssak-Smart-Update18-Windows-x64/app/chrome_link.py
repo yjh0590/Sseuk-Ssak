@@ -1,4 +1,5 @@
 """One-shot localhost bridge between the desktop app and Chrome."""
+
 import base64
 import hashlib
 import hmac
@@ -27,6 +28,7 @@ def pairing_key():
 
 def find_chrome():
     import winreg
+
     for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
         try:
             with winreg.OpenKey(hive, r"Software\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe") as k:
@@ -43,6 +45,22 @@ def find_chrome():
     raise FileNotFoundError("Google Chrome 설치 위치를 찾지 못했어요.")
 
 
+def find_edge():
+    for env in ("PROGRAMFILES(X86)", "PROGRAMFILES"):
+        exe = Path(os.environ.get(env, "")) / "Microsoft/Edge/Application/msedge.exe"
+        if env in os.environ and exe.is_file():
+            return exe
+    raise FileNotFoundError("Chrome 또는 Microsoft Edge가 필요해요. 둘 중 하나를 설치한 뒤 다시 실행해 주세요.")
+
+
+def find_browser():
+    """앱 화면(--app 창)을 띄울 브라우저. 크롬 다운로드 기능만 Chrome이 꼭 필요하다."""
+    try:
+        return find_chrome()
+    except FileNotFoundError:
+        return find_edge()
+
+
 def launch(url):
     subprocess.Popen([str(find_chrome()), url])
 
@@ -56,7 +74,9 @@ def run_cleanup(open_browser=launch, timeout=900):
     report = []
     from chrome_files import Session
     from recycle import recycle
-    session=Session()
+
+    session = Session()
+
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup()
@@ -80,30 +100,51 @@ def run_cleanup(open_browser=launch, timeout=900):
             self.wfile.write(page.encode())
 
         def do_POST(self):
-            if not self.valid() or self.headers.get('Origin') != origin:return self.send_error(403)
+            if not self.valid() or self.headers.get('Origin') != origin:
+                return self.send_error(403)
             try:
-                length=int(self.headers.get('Content-Length',0))
-                if not 1<=length<=16000000:raise ValueError('요청이 너무 커요.')
-                value=json.loads(self.rfile.read(length));action=value.get('action')
-                if action=='inspect':result=session.inspect(value['items'])
-                elif action=='policy':result=session.policy(value)
-                elif action=='start':result=session.start(value['ids'])
-                elif action=='move':
-                    result=session.move(value['id'],recycle)
-                    payload=','.join(map(str,sorted(result['recordIds'])))
-                    result['eraseProof']=hmac.new(key,f'{url}|{expires}|{payload}'.encode(),'sha256').hexdigest()
-                    try:(APP_DIR/'chrome-last-result.json').write_text(json.dumps(session.finish(),ensure_ascii=False),encoding='utf-8')
-                    except OSError:pass
-                elif action=='finish':
-                    result=session.finish(value.get('record_failed',[]));report.append(result)
-                else:raise ValueError('작업을 확인해 주세요.')
+                length = int(self.headers.get('Content-Length', 0))
+                if not 1 <= length <= 16000000:
+                    raise ValueError('요청이 너무 커요.')
+                value = json.loads(self.rfile.read(length))
+                action = value.get('action')
+                if action == 'inspect':
+                    result = session.inspect(value['items'])
+                elif action == 'policy':
+                    result = session.policy(value)
+                elif action == 'start':
+                    result = session.start(value['ids'])
+                elif action == 'move':
+                    result = session.move(value['id'], recycle)
+                    payload = ','.join(map(str, sorted(result['recordIds'])))
+                    result['eraseProof'] = hmac.new(key, f'{url}|{expires}|{payload}'.encode(), 'sha256').hexdigest()
+                    try:
+                        (APP_DIR / 'chrome-last-result.json').write_text(
+                            json.dumps(session.finish(), ensure_ascii=False), encoding='utf-8'
+                        )
+                    except OSError:
+                        pass
+                elif action == 'finish':
+                    result = session.finish(value.get('record_failed', []))
+                    report.append(result)
+                elif action == 'abort' and not session.started:
+                    result = {}
+                    report.append(str(value.get('reason') or '크롬 연결에 실패했어요.')[:300])
+                else:
+                    raise ValueError('작업을 확인해 주세요.')
                 self.send_response(200)
             except Exception as e:
-                result={'error':str(e)};self.send_response(400)
-            data=json.dumps(result).encode()
-            self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(data)));self.end_headers()
-            try:self.wfile.write(data)
-            except (BrokenPipeError,ConnectionResetError):pass
+                result = {'error': str(e)}
+                self.send_response(400)
+            data = json.dumps(result).encode()
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            try:
+                self.wfile.write(data)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
     with HTTPServer(("127.0.0.1", 0), Handler) as server:
         host = f"127.0.0.1:{server.server_port}"
@@ -112,17 +153,30 @@ def run_cleanup(open_browser=launch, timeout=900):
         expires = int(time.time()) + timeout
         proof = hmac.new(key, f"{url}|{expires}".encode(), "sha256").hexdigest()
         data = json.dumps(dict(task="preview", expires=expires, proof=proof))
-        page = (APP_DIR / "chrome-progress.html").read_text(encoding="utf-8").replace("EXTENSION_ID",extension).replace("REQUEST_DATA",data).replace("STORAGE_SCRIPT",(APP_DIR/"storage.js").read_text(encoding="utf-8"))
+        page = (
+            (APP_DIR / "chrome-progress.html")
+            .read_text(encoding="utf-8")
+            .replace("EXTENSION_ID", extension)
+            .replace("REQUEST_DATA", data)
+            .replace("STORAGE_SCRIPT", (APP_DIR / "storage.js").read_text(encoding="utf-8"))
+        )
         open_browser(url)
         server.timeout = 0.4
         deadline = time.monotonic() + timeout
         while not report and time.monotonic() < deadline:
             server.handle_request()
-    if not report and session.started:return session.finish([{'name':'기록 정리','path':'','reason':'탭이 닫혔거나 연결 시간이 끝났어요. 실제 파일 결과를 확인하고 기록은 다시 확인하세요.'}])
+    if not report and session.started:
+        return session.finish(
+            [
+                {
+                    'name': '기록 정리',
+                    'path': '',
+                    'reason': '탭이 닫혔거나 연결 시간이 끝났어요. 실제 파일 결과를 확인하고 기록은 다시 확인하세요.',
+                }
+            ]
+        )
     if not report:
         raise RuntimeError("크롬의 응답을 받지 못했어요. 열린 탭과 확장 연결을 확인해 주세요.")
-    if report[0] == "setup":
-        raise RuntimeError("이 크롬 프로필에 연결 도우미를 등록해 주세요. 앱의 ‘처음 연결’을 누르세요.")
-    if report[0] == "error":
-        raise RuntimeError("크롬에서 정리를 완료하지 못했어요. 열린 탭에서 안내를 확인하세요.")
+    if isinstance(report[0], str):
+        raise RuntimeError(report[0])
     return report[0]
