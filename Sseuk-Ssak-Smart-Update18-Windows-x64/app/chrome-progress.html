@@ -1,0 +1,102 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>쓱-싹 · 크롬 다운로드 정리</title><style>
+*{box-sizing:border-box}body{font:16px/1.6 system-ui,sans-serif;background:#F6F7F9;color:#191F28;padding:32px}main{max-width:1080px;margin:auto;background:white;padding:32px;border-radius:28px}h1{font-size:28px}p,small{color:#59636E}button,select{font:inherit;min-height:42px;border:0;border-radius:12px;padding:0 14px;cursor:pointer;margin:4px;background:#f1f3f5}button.primary{background:#C93645;color:white}button:disabled{opacity:.5;cursor:default}.row{display:flex;gap:12px;padding:16px 8px;border-bottom:1px solid #eee;align-items:center}.keeper{background:#fff1f3}.text{flex:1;min-width:0}.text b,.text small{display:block;overflow-wrap:anywhere}.text small{font-size:14px;margin-top:4px}.error{color:#C93645}#list{max-height:48vh;overflow:auto}progress{width:100%;accent-color:#C93645}#actions{position:sticky;bottom:0;background:white;padding-top:12px}.storage-pair{display:flex;gap:24px;flex-wrap:wrap}.storage-card{flex:1;min-width:240px;padding:16px;background:#F6F7F9;border-radius:20px}.storage-donut{width:200px;height:200px;border-radius:50%;display:grid;place-items:center;margin:16px auto}.storage-hole{width:130px;height:130px;border-radius:50%;background:white;display:flex;flex-direction:column;align-items:center;justify-content:center}.storage-types{display:flex;flex-wrap:wrap;gap:12px}.storage-type{padding:12px;display:flex;gap:12px;background:#f6f7f9}#storage{margin-top:24px}#storage p{font-size:14px}
+
+body{padding:18px;margin:0}main{max-width:1320px;padding:24px}h1{margin:4px 0 8px;font-size:26px}main>p{margin:8px 0;font-size:14px}#summary{background:#fff0f2;color:#9d2939;border-radius:12px;padding:12px 16px;font-weight:600;margin:12px 0}#viewTools{display:flex;gap:16px;align-items:center;font-size:14px;margin:10px 0}#search{border:1px solid #ddd;border-radius:10px;padding:8px 12px;font:inherit;flex:1}#list{max-height:55vh}.file-group{border:1px solid #e9ebee;border-radius:14px;overflow:hidden;margin:10px 0}.file-group h3{font-size:15px;margin:10px 12px 0}.group-path{display:block;margin:0 12px 6px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.row{padding:7px 12px;gap:10px;cursor:pointer}.text b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.text small{font-size:12px;margin-top:2px}.row button{font-size:12px;min-height:30px;padding:0 10px;flex-shrink:0}.amount{font-size:13px;min-width:70px;text-align:right;white-space:nowrap}.badge{font-size:12px;background:#f1f3f5;padding:3px 8px;border-radius:6px;white-space:nowrap}.badge.kept{background:#f8dbe0;color:#a62b3b}.row input{accent-color:#C93645}.row:has(input:checked){background:#fff7f8}#groupPager{display:flex;justify-content:center;gap:12px;align-items:center}#actions{border-top:1px solid #eee;margin-top:12px;display:flex;justify-content:flex-end}#policy small{display:block;margin:4px}#groupCount{white-space:nowrap}
+@media(max-width:700px){.badge{display:none}main{padding:14px}body{padding:8px}.row{gap:6px}.amount{min-width:55px}}
+
+/* Only file rows may be selected/dragged; no extra disk charts in this window. */
+body{user-select:none}#list,input{user-select:text}#viewTools{flex-wrap:wrap;gap:8px}#search{flex:1 1 180px;max-width:300px;min-width:120px;width:220px}#viewTools select{font-size:14px;margin:0;padding:0 10px;border:1px solid #e0e3e8;background:#f6f7f9}#viewTools label{white-space:nowrap}#groupKeyword{font:inherit;width:220px;border:1px solid #ddd;border-radius:10px;padding:8px 12px}#all{border:1.5px solid #b96371;background:#fff8f9;color:#962b3d}#sortCaption{font-size:13px;color:#59636e}#wordHelp{font-size:13px;color:#59636e;line-height:1.6}
+
+html.proportional-layout{overflow-x:auto}.proportional-layout body{zoom:var(--app-scale);width:var(--layout-width);min-width:1440px;padding:18px;margin:0}.proportional-layout main{max-width:1320px;padding:24px}.proportional-layout .badge{display:inline}.proportional-layout .row{gap:10px}.proportional-layout .amount{min-width:70px}.proportional-layout #list{max-height:calc(var(--layout-height) * .55)}
+
+/* Fit the whole logical canvas; only vertical page scrolling remains. */
+html.proportional-layout{overflow-x:hidden}.proportional-layout body{overflow-x:hidden;max-width:var(--layout-width)}.proportional-layout main{width:100%;min-width:0}.proportional-layout #viewTools{min-width:0}.proportional-layout #list{overflow-x:hidden}.proportional-layout .row{min-width:0}.proportional-layout .text{min-width:0}
+
+#wordModeButtons{display:flex;gap:6px;flex-wrap:wrap}#wordModeButtons button{border:1px solid #c8cdd4;background:white;margin:0;font-size:14px}#wordModeButtons button[aria-pressed="true"]{background:#a62d40;border-color:#a62d40;color:white}#viewTools [hidden]{display:none!important}
+</style><main><small>쓱-싹</small><h1>크롬에서 받은 파일을 정리해요.</h1><p>다운로드 완료 기록에 연결된 실제 파일을 비교해요. 비슷한 이름 모아보기를 켜면 같은 저장 폴더·형식·이름 틀의 버전을 묶어 비교해요. 남길 파일을 확인한 뒤 이전 버전을 선택하세요.<br>이동에 성공한 파일의 다운로드 기록만 지워요. 방문 기록은 그대로예요.</p><p id="status" role="status">크롬 다운로드 목록을 불러오고 있어요.</p><div id="policy" hidden><label>남김 추천 기준 <select id="mode"><option value="version">높은 버전 남기기 · v1.3 &gt; v1.2</option><option value="date">최근 수정한 파일 남기기</option><option value="number">큰 복사본 번호 남기기 · (3) &gt; (2)</option></select></label><button id="all">정리 후보만 선택</button><small id="criterionHelp" role="status"></small><small>남김은 추천 표시예요. 체크한 파일은 추천 여부와 관계없이 휴지통으로 이동해요. 체크하지 않은 파일은 남겨요.</small></div><progress id="progress" hidden max="100" value="0"></progress><div id="summary"></div><div id="viewTools"><input id="search" placeholder="파일명 검색" aria-label="파일명 검색"><select id="pageSize" aria-label="페이지당 파일 수"><option value="10">10개 보기</option><option value="50">50개 보기</option><option value="100">100개 보기</option></select><select id="sortOrder" aria-label="파일 정렬"><option value="date-desc">최신순</option><option value="size-desc">크기순 · 큰 순</option><option value="size-asc">크기순 · 작은 순</option><option value="name-asc">이름순</option></select><label><input id="similarNames" type="checkbox"> 비슷한 이름 모아보기</label><label><input id="showSingles" type="checkbox"> 단독 파일도 보기</label><div id="wordModeButtons" role="group" aria-label="파일 묶기 방식"><button type="button" data-word-mode="off">기본 이름</button><button type="button" data-word-mode="auto">공통 단어 자동</button><button type="button" data-word-mode="manual">문구 직접 입력</button></div><select hidden id="wordMode" aria-label="공통 단어 묶기"><option value="off">공통 단어 묶기 끔</option><option value="auto">자동 · 공통 단어 2개 이상</option><option value="manual">직접 입력한 문구로 묶기</option></select><input id="groupKeyword" placeholder="묶을 문구: 예) Sseuk-Ssak" aria-label="묶을 단어나 문구" maxlength="100"><button id="applyWords">묶기 적용</button><span id="groupCount"></span></div><p id="wordHelp" role="status">공통 단어 묶기는 내용 중복 검사가 아닙니다. 자동은 공통 단어 2개, 직접 입력은 연속 문구 포함 기준이며 같은 폴더·파일 형식·플랫폼 안에서 비교합니다. 적용 후 남김 추천과 정리 대상을 확인하세요.</p><p id="sortCaption" role="status"></p><div id="list"></div><div id="groupPager"></div><div id="actions"><button id="move" class="primary" disabled>선택한 파일 휴지통으로 이동</button><button id="done">정리하지 않고 돌아가기</button></div></main>
+<script>
+(()=>{
+ const REFERENCE_WIDTH=1440;
+ function resizeLayout(){
+  const width=document.documentElement.clientWidth;
+  const scale=Math.min(1,width/REFERENCE_WIDTH);
+  document.documentElement.classList.add('proportional-layout');
+  document.documentElement.style.setProperty('--app-scale',String(scale));
+  document.documentElement.style.setProperty('--layout-width',Math.max(REFERENCE_WIDTH,width/scale)+'px');
+  document.documentElement.style.setProperty('--layout-height',(window.innerHeight/scale)+'px');
+ }
+ window.addEventListener('resize',resizeLayout);resizeLayout();
+})();
+</script><script>
+const request=REQUEST_DATA,extension='EXTENSION_ID',$=s=>document.querySelector(s);let state={items:[],skipped:[]},picked=new Set(),running=false,finished=false,recordFailed=[];
+const el=(tag,text,cls='')=>{const e=document.createElement(tag);e.textContent=text;e.className=cls;return e};
+async function api(action,data={}){const response=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...data})});const result=await response.json();if(!response.ok)throw Error(result.error);return result}
+function send(task,extra={}){return new Promise((resolve,reject)=>{if(!window.chrome?.runtime?.sendMessage)return reject(Error('새 연결 도우미를 등록해 주세요.'));chrome.runtime.sendMessage(extension,{...request,task,...extra},r=>{if(chrome.runtime.lastError||!r)return reject(Error('새 연결 도우미를 등록한 뒤 앱에서 다시 열어 주세요.'));r.ok?resolve(r):reject(Error(r.error))})})}
+function count(){$('#move').disabled=running||!picked.size;$('#move').textContent='선택한 파일 '+picked.size+'개 휴지통으로 이동'}
+let groupPage=0;
+const compareRows=(a,b)=>{
+ const order=$('#sortOrder').value;
+ if(order==='size-desc')return b.size-a.size||a.name.localeCompare(b.name,undefined,{numeric:true});
+ if(order==='size-asc')return a.size-b.size||a.name.localeCompare(b.name,undefined,{numeric:true});
+ if(order==='name-asc')return a.name.localeCompare(b.name,undefined,{numeric:true});
+ return (b.modified||0)-(a.modified||0)||a.name.localeCompare(b.name,undefined,{numeric:true});
+};
+function visibleGroups(){
+ const groups=new Map();for(const r of state.items){if(!groups.has(r.group))groups.set(r.group,[]);groups.get(r.group).push(r)}
+ const query=$('#search').value.trim().toLowerCase();
+ return [...groups].filter(([g,items])=>($('#showSingles').checked||items.length>1)&&(!query||items.some(r=>r.name.toLowerCase().includes(query))))
+ .map(([g,items])=>[g,[...items].sort(compareRows)])
+ .sort((a,b)=>compareRows(a[1][0],b[1][0]));
+}
+// Suppress native dragging outside the file list; keep text inputs editable.
+document.addEventListener('dragstart',e=>{if(!e.target.closest('#list'))e.preventDefault()});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>e.preventDefault());
+
+const size=n=>{let i=0;while(n>=1024&&i<4){n/=1024;i++}return n.toLocaleString('ko-KR',{maximumFractionDigits:1})+' '+['B','KB','MB','GB','TB'][i]};
+const criterionHelp={
+ version:'이름에 적힌 버전 숫자가 가장 큰 파일을 추천해요. 예: 앱-v0.7.13.zip을 남기고 v0.7.12.zip은 정리 후보로 표시해요. 끝의 (1)은 버전이 아니에요. 버전이 없는 묶음은 수정 날짜로 비교해요.',
+ date:'실제 파일의 마지막 수정 시간이 가장 최근인 파일을 추천해요. 다운로드한 날짜와는 달라요. 예: 11월 4일 수정 파일을 남기고 11월 1일 파일은 정리 후보로 표시해요.',
+ number:'파일명 끝의 괄호 숫자가 가장 큰 파일을 추천해요. 예: 자료(3).pdf > 자료(2).pdf > 자료.pdf. 숫자가 크다고 내용이나 버전이 최신이라는 뜻은 아니에요.'
+};
+function draw(){
+ $('#sortCaption').textContent='정렬: '+({'date-desc':'수정 날짜 최신순','size-desc':'크기 큰 순','size-asc':'크기 작은 순','name-asc':'이름순'}[$('#sortOrder').value])+' · 묶음은 첫 항목 기준';
+ $('#wordMode').value=state.word_mode||'off';
+ const selectedWordMode=state.word_mode||'off';for(const button of document.querySelectorAll('[data-word-mode]'))button.setAttribute('aria-pressed',String(button.dataset.wordMode===selectedWordMode));
+ $('#groupKeyword').hidden=selectedWordMode!=='manual';$('#applyWords').hidden=selectedWordMode!=='manual';$('#similarNames').parentElement.hidden=selectedWordMode!=='off';$('#groupKeyword').value=state.keyword||'';$('#similarNames').disabled=running||state.word_mode==='auto'||state.word_mode==='manual';
+ $('#similarNames').checked=!!state.similar;$('#mode').value=state.mode||'version';$('#criterionHelp').textContent=criterionHelp[$('#mode').value];
+ const list=$('#list');list.replaceChildren();const groups=new Map();
+ for(const r of state.items){if(!groups.has(r.group))groups.set(r.group,[]);groups.get(r.group).push(r)}
+ const candidates=state.items.filter(r=>!r.protected),keepers=state.items.filter(r=>r.note.startsWith('남길 파일 ·'));
+ $('#summary').textContent='남김 추천 '+keepers.length+'개  ·  정리 후보 '+candidates.length+'개 / '+size(candidates.reduce((n,r)=>n+r.size,0))+'  ·  누락·보호 '+state.skipped.length+'개';
+ const visible=visibleGroups(), pageSize=Number($('#pageSize').value);
+ const flat=visible.flatMap(([group,items])=>items.map(item=>({group,item})));
+ groupPage=Math.min(groupPage,Math.max(0,Math.ceil(flat.length/pageSize)-1));
+ const pageGroups=new Map();for(const {group,item} of flat.slice(groupPage*pageSize,(groupPage+1)*pageSize)){if(!pageGroups.has(group))pageGroups.set(group,[]);pageGroups.get(group).push(item)}
+ $('#groupCount').textContent=visible.length+'개 묶음 · '+flat.length+'개 파일';
+ for(const [group,items] of pageGroups){
+  const section=el('section','','file-group');const title=group.split(/[\\/]/).pop().replace('{version}','버전 비교');section.append(el('h3',title+' · 이 페이지 '+items.length+'개'));
+  const path=el('small',items[0].path.slice(0,-items[0].name.length),'group-path');path.title=path.textContent;section.append(path);
+  for(const r of items){
+   const kept=r.note.startsWith('남길 파일 ·');const row=el('div','','row'+(kept?' keeper':''));
+   const box=el('input','');box.type='checkbox';box.disabled=running;box.checked=picked.has(r.id);box.setAttribute('aria-label',r.name+' 선택');box.onchange=()=>{box.checked?picked.add(r.id):picked.delete(r.id);count()};
+   const text=el('div','','text');const name=el('b',r.name);name.title=r.path;text.append(name,el('small',r.date+(r.protected&&!kept?' · '+r.note:'')));
+   const badge=el('span',kept?'남김 추천':r.protected?'추천 보류':'정리 후보','badge'+(kept?' kept':''));
+   const amount=el('span',size(r.size),'amount');
+   row.onclick=e=>{if(!running&&e.target!==box&&!e.target.closest('button'))box.click()};row.append(box,text,badge,amount);section.append(row);
+  }list.append(section);
+ }
+ if(!visible.length)list.append(el('p','비교할 묶음이 없어요. 단독 파일도 보기를 켜거나 검색어를 바꿔 주세요.'));
+ const pager=$('#groupPager');pager.replaceChildren();if(flat.length>pageSize){const prev=el('button','이전'),next=el('button','다음');prev.disabled=running||groupPage===0;next.disabled=running||(groupPage+1)*pageSize>=flat.length;prev.onclick=()=>{groupPage--;draw()};next.onclick=()=>{groupPage++;draw()};pager.append(prev,el('span',(groupPage+1)+' / '+Math.ceil(flat.length/pageSize)),next)}count();
+}
+for(const button of document.querySelectorAll('[data-word-mode]'))button.onclick=()=>{const mode=button.dataset.wordMode;$('#wordMode').value=mode;$('#groupKeyword').hidden=mode!=='manual';$('#applyWords').hidden=mode!=='manual';$('#similarNames').parentElement.hidden=mode!=='off';for(const item of document.querySelectorAll('[data-word-mode]'))item.setAttribute('aria-pressed',String(item===button));if(mode!=='manual'){groupPage=0;policy({word_mode:mode,keyword:''})}else $('#groupKeyword').focus()};
+$('#applyWords').onclick=()=>{groupPage=0;policy({word_mode:$('#wordMode').value,keyword:$('#groupKeyword').value})};$('#groupKeyword').onkeydown=e=>{if(e.key==='Enter')$('#applyWords').click()};
+$('#pageSize').onchange=()=>{groupPage=0;draw()};$('#sortOrder').onchange=()=>{groupPage=0;draw()};$('#similarNames').onchange=()=>{groupPage=0;policy({similar:$('#similarNames').checked})};
+$('#search').oninput=()=>{groupPage=0;draw()};$('#showSingles').onchange=()=>{groupPage=0;draw()};
+async function policy(value){if(running||finished)return;running=true;for(const e of document.querySelectorAll('#policy select,#policy button,#viewTools input,#viewTools select'))e.disabled=true;try{state=await api('policy',value);picked.clear()}catch(e){$('#status').textContent=e.message}finally{running=false;for(const e of document.querySelectorAll('#policy select,#policy button,#viewTools input,#viewTools select'))e.disabled=false;draw()}}
+$('#mode').onchange=()=>policy({mode:$('#mode').value});$('#all').onclick=()=>{picked=picked.size?new Set():new Set(visibleGroups().flatMap(([g,items])=>items).filter(r=>!r.protected).map(r=>r.id));draw()};
+async function finish(){const result=await api('finish',{record_failed:recordFailed});finished=true;return result}
+$('#done').onclick=async()=>{if(running)return;if(finished){window.close();return}try{await finish();$('#status').textContent='앱으로 결과를 전달했어요. 이 탭을 닫아도 돼요.';$('#move').disabled=true;$('#policy').hidden=true;$('#viewTools').hidden=true;$('#groupPager').hidden=true;$('#done').textContent='탭 닫기'}catch(e){$('#status').textContent=e.message}};
+$('#move').onclick=async()=>{if(running||!picked.size)return;const recommended=state.items.filter(r=>picked.has(r.id)&&r.note.startsWith('남길 파일 ·')).length;const message='선택한 실제 파일 '+picked.size+'개를 휴지통으로 옮기고, 이동에 성공한 파일의 다운로드 기록을 지울까요?'+(recommended?'\n\n남김 추천 파일 '+recommended+'개도 선택되어 함께 이동해요.':'');if(!confirm(message))return;running=true;draw();$('#mode').disabled=$('#all').disabled=$('#done').disabled=true;$('#progress').hidden=false;const ids=[...picked];try{await api('start',{ids});for(let i=0;i<ids.length;i++){const result=await api('move',{id:ids[i]});if(result.ok){try{const erased=await send('erase',{ids:result.recordIds,eraseProof:result.eraseProof});recordFailed.push(...erased.failed)}catch(e){recordFailed.push({...result.entry,reason:'파일은 이동했지만 다운로드 기록은 확인 필요 · '+e.message})}}$('#progress').value=Math.floor((i+1)*100/ids.length);$('#status').textContent=(i+1)+' / '+ids.length+'개 처리 · '+$('#progress').value+'%'}const report=await finish();$('#list').replaceChildren();for(const [items,label] of [[report.deleted,'휴지통 이동'],[report.failed,'실패'],[report.remaining,'남김'],[report.record_failed,'기록 정리 실패']])for(const item of items){const row=el('div','','row'),text=el('div','','text');text.append(el('b',label+' · '+item.name),el('small',item.path),el('small',item.reason||''));row.append(text);$('#list').append(row)}$('#status').textContent='파일 이동 '+report.deleted.length+'개 · 파일 실패 '+report.failed.length+'개 · 기록 정리 실패 '+report.record_failed.length+'개'}catch(e){$('#status').textContent=e.message+' · 앱에서 최근 결과를 확인하세요.'}finally{running=false;$('#policy').hidden=true;$('#viewTools').hidden=true;$('#groupPager').hidden=true;$('#move').disabled=true;$('#done').disabled=false;$('#done').textContent=finished?'탭 닫기':'결과 전달하고 돌아가기'}};
+send('preview').then(r=>api('inspect',{items:r.items})).then(r=>{if(finished)return;state=r;$('#policy').hidden=false;draw();$('#status').textContent='남길 파일을 확인하고 정리할 파일을 선택하세요. 기본 기준은 파일명의 버전 번호예요. 남김 추천 파일도 체크하면 이동할 수 있어요.'}).catch(e=>$('#status').textContent=e.message);
+</script></html>

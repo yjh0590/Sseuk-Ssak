@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "쓱-싹 · 크롬 다운로드 연결 도우미",
+  "version": "0.7.11",
+  "minimum_chrome_version": "96",
+  "description": "쓱-싹 앱이 크롬 다운로드 목록에 연결하도록 돕습니다. 앱에서 실제 파일과 정리 대상을 확인한 후 선택한 항목을 정리하세요.",
+  "permissions": [
+    "downloads"
+  ],
+  "incognito": "not_allowed",
+  "background": {
+    "service_worker": "worker.js"
+  },
+  "action": {
+    "default_title": "쓱-싹 크롬 다운로드 연결 도우미"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzHh86fow4b2yaUCpVSHnM6KeSEIICoEZotDGVivULiTehVerfcsQdI39gJdujNFhNPQRbuhaex3SkuTN9Mlk3EOaDcegWVKG+r6SmquK4/hMbEW9RBP9rCRXbkvvs6bbuS+TWKMLuUfblzfe22eIPW5sEC0w3Xhq4RqRL+AwWqNqBY/zLhzVy5ZXVg4SHNkkf3gnHnl5O0jIR1sLUA1zbUsnoJ09X6V6UMcQvycwo4Cg4na0Ng6nbFZigqyHG5YSJo9NTNEKofpc+XpODasOi2J/vVPj1NWHGErFK5s7ItEc1BmS3Flwi8SbgUga2TYcc48SLG+7FHcSxPzCGivXFQIDAQAB",
+  "externally_connectable": {
+    "matches": [
+      "http://127.0.0.1/oddz-clean/*"
+    ]
+  }
+}
