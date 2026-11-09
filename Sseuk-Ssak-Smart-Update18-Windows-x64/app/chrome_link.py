@@ -13,6 +13,10 @@ from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
 HELPER = APP_DIR.parent / "크롬 다운로드 연결 도우미"
+# 탭이 열리지 않거나(첫 요청 없음) 닫혔을 때(생존 신호 끊김) 앱이 900초를 기다리지 않도록 한다.
+# 백그라운드 탭 타이머는 최대 1분 간격까지 느려지므로 생존 신호 제한은 그보다 넉넉하게 둔다.
+FIRST_REQUEST_TIMEOUT = 20
+SILENT_TIMEOUT = 90
 
 
 def pairing_key():
@@ -72,6 +76,7 @@ def run_cleanup(open_browser=launch, timeout=900):
     extension = "".join(chr(97 + int(c, 16)) for c in hex_id)
     path = "/oddz-clean/" + secrets.token_hex(24)
     report = []
+    seen = []  # 마지막으로 탭에서 요청이 온 시각
     from chrome_files import Session
     from recycle import recycle
 
@@ -86,7 +91,10 @@ def run_cleanup(open_browser=launch, timeout=900):
             pass
 
         def valid(self):
-            return self.headers.get("Host") == host and self.path == path
+            ok = self.headers.get("Host") == host and self.path == path
+            if ok:
+                seen[:] = [time.monotonic()]
+            return ok
 
         def do_GET(self):
             if not self.valid():
@@ -108,7 +116,9 @@ def run_cleanup(open_browser=launch, timeout=900):
                     raise ValueError('요청이 너무 커요.')
                 value = json.loads(self.rfile.read(length))
                 action = value.get('action')
-                if action == 'inspect':
+                if action == 'ping':
+                    result = {}
+                elif action == 'inspect':
                     result = session.inspect(value['items'])
                 elif action == 'policy':
                     result = session.policy(value)
@@ -162,9 +172,13 @@ def run_cleanup(open_browser=launch, timeout=900):
         )
         open_browser(url)
         server.timeout = 0.4
-        deadline = time.monotonic() + timeout
+        opened = time.monotonic()
+        deadline = opened + timeout
         while not report and time.monotonic() < deadline:
             server.handle_request()
+            now = time.monotonic()
+            if (not seen and now - opened > FIRST_REQUEST_TIMEOUT) or (seen and now - seen[0] > SILENT_TIMEOUT):
+                break  # 탭이 열리지 않았거나 닫혔다
     if not report and session.started:
         return session.finish(
             [

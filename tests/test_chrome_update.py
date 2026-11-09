@@ -1,6 +1,8 @@
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 from tests import APP
 from engine import Row
 from download_versions import group_key, choose_downloads
@@ -73,6 +75,20 @@ class ChromeUpdateTests(unittest.TestCase):
             self.assertIn('value="' + str(n) + '"', html)
         self.assertIn('flat.slice(groupPage*pageSize', html)
         self.assertIn("addEventListener('dragstart'", html)
+
+
+class ChromeTimeoutTests(unittest.TestCase):
+    def test_app_is_released_when_tab_never_opens(self):
+        import chrome_link
+
+        with (
+            mock.patch.object(chrome_link, 'FIRST_REQUEST_TIMEOUT', 0.5),
+            mock.patch.object(chrome_link, 'pairing_key', return_value=b'k' * 32),
+        ):
+            started = time.monotonic()
+            with self.assertRaises(RuntimeError):
+                chrome_link.run_cleanup(open_browser=lambda url: None)
+        self.assertLess(time.monotonic() - started, 5)
 
 
 if __name__ == '__main__':
