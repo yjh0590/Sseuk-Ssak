@@ -14,6 +14,7 @@ from pathlib import Path
 import chrome_link
 import folder_ops
 import junk
+import preview
 import storage_view
 import windows_ui
 from analysis_views import folder_index
@@ -41,11 +42,6 @@ ASSETS = {
     'mark.png': ('mark.png', 'image/png'),
     'font.ttf': ('fonts/SseukSsakDance.ttf', 'font/ttf'),
 }
-# 열면 실행되는 형식. 파일 열기 대신 탐색기에서 위치만 보여 준다.
-EXECUTABLE = set(
-    '.exe .com .bat .cmd .msi .msp .scr .pif .lnk .url .reg .hta .cpl .msc .jar '
-    '.ps1 .psm1 .vbs .vbe .js .jse .wsf .wsh .appref-ms .application .settingcontent-ms'.split()
-)
 STREAMED = ('apply', 'scan')  # 진행률을 NDJSON으로 흘려보내는 작업
 
 
@@ -339,9 +335,8 @@ class App:
         p = ref[1].path
         if not p.is_file():
             raise ValueError('파일이 없거나 열 수 없어요. 다시 검사해 주세요.')
-        if p.suffix.lower() in EXECUTABLE:
-            subprocess.Popen(['explorer.exe', '/select,', str(p)])
-            raise ValueError('실행될 수 있는 파일이라 바로 열지 않았어요. 탐색기에서 위치를 보여 드렸어요.')
+        if p.suffix.lower() in preview.EXECUTABLE:  # 실행하지 않고 정보만 보여 준다
+            return {'preview': {'title': p.name + ' · 실행하지 않고 미리보기', 'detail': preview.describe(p)}}
         try:
             os.startfile(str(p))
         except OSError as e:

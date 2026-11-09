@@ -112,20 +112,25 @@ class ApplyTests(unittest.TestCase):
         self.assertIn('사용 중인 파일', next(iter(result['errors'].values())))
         self.assertTrue(copy.exists())
 
-    def test_executable_is_revealed_not_opened(self):
+    def test_executable_is_previewed_not_opened(self):
         import desktop
+        import preview
 
-        self.write('setup.exe', 'MZ')
+        self.write('보고서.pdf.exe', 'not a pe')
+        self.write('run.bat', 'del /q %TEMP%\\*.tmp')
         state = self.scan()
-        calls = []
         with (
-            mock.patch.object(desktop.subprocess, 'Popen', calls.append),
+            mock.patch.object(desktop.subprocess, 'Popen') as popen,
             mock.patch.object(desktop.os, 'startfile', create=True) as start,
+            mock.patch.object(preview, 'signature', return_value='서명 없음'),
         ):
-            with self.assertRaisesRegex(ValueError, '바로 열지 않았어요'):
-                self.app.handle('open_file', {'id': self.entry(state, '전체 파일', 'setup.exe')['id']})
+            exe = self.app.handle('open_file', {'id': self.entry(state, '전체 파일', '보고서.pdf.exe')['id']})
+            bat = self.app.handle('open_file', {'id': self.entry(state, '전체 파일', 'run.bat')['id']})
         start.assert_not_called()
-        self.assertEqual(calls[0][0], 'explorer.exe')
+        popen.assert_not_called()
+        self.assertIn('.pdf 파일처럼 보이지만', exe['preview']['detail'])
+        self.assertIn('PE)이 아니에요', exe['preview']['detail'])
+        self.assertIn('del /q %TEMP%\\*.tmp', bat['preview']['detail'])
 
 
 class BrowserTests(unittest.TestCase):

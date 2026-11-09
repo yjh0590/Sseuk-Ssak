@@ -53,7 +53,21 @@ function renderFolderPage(){
  $('#hero').replaceChildren();const hero=make('div','hero-copy');hero.append(make('h2','','정리할 폴더들이 들어 있는 위치를 선택하세요'),make('p','',state.root||'선택한 위치의 바로 아래 폴더들을 이름과 버전으로 묶어 비교합니다.'));
  btn(hero,state.root?'다른 위치 선택':'폴더 위치 선택',()=>scan(true),'primary');$('#hero').append(hero);
  $('#section').textContent='폴더 선택 및 정리';$('#tools').replaceChildren();$('#filters').replaceChildren();$('#actionbar').replaceChildren();const list=$('#list');list.replaceChildren();
- const intro=make('section','filter-panel');intro.append(make('h3','filter-panel-title','폴더 찾기 → 체크박스로 선택 → 선택한 폴더 삭제'),make('p','','삭제는 영구 삭제가 아닌 휴지통 이동입니다. 필요한 경우 목록 아래의 내용 비교를 먼저 이용하세요.\n\n각 묶음에서 날짜순·크기순을 선택할 수 있습니다. 날짜는 폴더 자체의 수정 날짜이며, 크기는 하위 파일의 합계입니다.'));list.append(intro);
+ const intro=folderSteps();list.append(intro);
  const host=make('div','folder-page-results');list.append(host);
  if(state.root)btn(intro,'비슷한 폴더 찾기',()=>openFolderCompare(host),'primary');else host.append(make('p','blank','위에서 폴더들이 들어 있는 위치를 먼저 선택해 주세요.'));
+}
+
+// 폴더 정리 순서를 아이콘 단계로 보여 준다. 아이콘은 고정 SVG 문자열.
+function folderSteps(){
+ const icon=d=>`<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+ const steps=[
+  [icon('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v2"/><path d="M3 7v10a2 2 0 0 0 2 2h6"/><circle cx="17" cy="16" r="3"/><path d="m21 20-1.8-1.8"/>'),'폴더 찾기','이름·버전이 비슷한 폴더를 묶어서 보여 줘요.'],
+  [icon('<rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8 12 3 3 5-6"/>'),'정리할 폴더 선택','남길 폴더는 두고 정리할 폴더만 체크해요. 헷갈리면 내용 비교를 먼저 해 보세요.'],
+  [icon('<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>'),'휴지통으로 이동','영구 삭제가 아니라 휴지통으로 옮겨요. 휴지통에서 복원할 수 있어요.'],
+ ];
+ const box=make('section','folder-steps-panel');const list=make('ol','folder-steps');
+ steps.forEach(([svg,title,desc],i)=>{const li=make('li','folder-step');const ic=make('span','folder-step-icon');ic.innerHTML=svg;const text=make('div','folder-step-text');text.append(make('small','folder-step-no','STEP '+(i+1)),make('b','',title),make('span','',desc));li.append(ic,text);list.append(li)});
+ box.append(list,make('p','folder-steps-note','날짜는 폴더 자체의 수정 날짜, 크기는 하위 파일의 합계예요. 각 묶음에서 날짜순·크기순으로 정렬할 수 있어요.'));
+ return box;
 }
