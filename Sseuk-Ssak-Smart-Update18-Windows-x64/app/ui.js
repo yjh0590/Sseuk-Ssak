@@ -114,7 +114,8 @@ function render(){
    filters.append(policy,make('p','filter-note',state.keeper_mode==='version'?'이름의 v1.2 같은 버전 숫자가 가장 큰 파일을 추천합니다. 버전이 없으면 수정 날짜를 비교합니다.':state.keeper_mode==='number'?'괄호 숫자가 가장 큰 파일을 남겨요. 숫자는 내용의 최신 여부를 보장하지 않아요.':state.keeper_mode==='manual'?'각 묶음에서 ‘이 파일 남기기’를 누르세요. 지정하지 않은 묶음은 선택되지 않아요.':'수정 날짜가 가장 늦은 파일을 남겨요. 날짜가 같으면 직접 지정해 주세요.'));
   }
  }
- if(page!==2&&items.length&&filterAllowed())btn(tools,picked.size?'선택 해제':page===0&&filter==='같은 이름'?'남길 파일 제외하고 선택':'전체 선택',()=>{picked=picked.size?new Set():new Set(items.filter(eligible).map(r=>r.id));render()});
+ const shown=sortRows(items).slice(0,limit),shownEligible=shown.filter(eligible),moreHidden=items.length>shown.length;
+ if(page!==2&&items.length&&filterAllowed())btn(tools,picked.size?'선택 해제':(page===0&&filter==='같은 이름'?'남길 파일 제외하고 선택':'전체 선택')+(moreHidden?' (화면의 '+shownEligible.length+'개)':''),()=>{picked=picked.size?new Set():new Set(shownEligible.map(r=>r.id));render()});
  if(page===2){
   const back=btn(tools,'← 뒤로',()=>navigateHistory(-1));back.disabled=busy||historyPosition<=0;
   const forward=btn(tools,'앞으로 →',()=>navigateHistory(1));forward.disabled=busy||historyPosition>=historyPaths.length-1;
@@ -122,7 +123,7 @@ function render(){
   const select=make('select','rank-sort');select.setAttribute('aria-label','폴더 용량 정렬');
   for(const [value,label] of [['size-desc','크기 · 큰 순'],['size-asc','크기 · 작은 순'],['date-desc','수정 날짜 · 최신순'],['date-asc','수정 날짜 · 오래된 순']]){const option=make('option','',label);option.value=value;select.append(option)}
   select.value=rankSort;select.disabled=busy||scanning;select.onchange=()=>{rankSort=select.value;render()};tools.append(select);
-  const all=make('label','rank-select-all'),box=make('input');box.type='checkbox';box.setAttribute('aria-label','현재 폴더 전체 선택');const candidates=items.filter(eligible);box.checked=!!candidates.length&&candidates.every(r=>picked.has(r.id));box.indeterminate=candidates.some(r=>picked.has(r.id))&&!box.checked;box.disabled=busy||scanning||!candidates.length;box.onchange=()=>{picked=box.checked?new Set(candidates.map(r=>r.id)):new Set();render()};all.append(box,document.createTextNode('전체 선택'));filters.append(all,make('p','filter-note',dir+' · 폴더 열기로 이동 · 날짜는 각 파일/폴더 자체의 수정 날짜예요.'));
+  const all=make('label','rank-select-all'),box=make('input');box.type='checkbox';box.setAttribute('aria-label','현재 폴더 전체 선택');const candidates=shownEligible;box.checked=!!candidates.length&&candidates.every(r=>picked.has(r.id));box.indeterminate=candidates.some(r=>picked.has(r.id))&&!box.checked;box.disabled=busy||scanning||!candidates.length;box.onchange=()=>{picked=box.checked?new Set(candidates.map(r=>r.id)):new Set();render()};all.append(box,document.createTextNode('전체 선택'));filters.append(all,make('p','filter-note',dir+' · 폴더 열기로 이동 · 날짜는 각 파일/폴더 자체의 수정 날짜예요.'));
  }
  if(state.logs.length)btn(tools,'검사 기록',()=>modal('검사 기록',state.logs.slice(0,30).join('\n')));
  const list=$('#list');list.replaceChildren();
@@ -133,8 +134,8 @@ function render(){
  else if(!state.root&&page===0){guide(5,'복사본','이름이 달라도 내용이 같은 파일을 찾아요.');guide(3,'풀어둔 ZIP','압축을 푼 폴더에 모든 파일이 있는지 비교해요.');guide(0,'작업 버전','초안과 최종본을 같은 묶음에서 살펴봐요.')}
  else if(!items.length){list.append(make('p','blank',page===1&&!checked.has('junk')?'정크 파일 찾기를 눌러 검사를 시작하세요.':page===3?'보관한 파일이 여기에 표시돼요.':page===2?'검사하면 폴더별 용량을 볼 수 있어요.':'현재 분류에 표시할 파일이 없어요.'))}
  else{
- let group='';const ordered=items.slice();if(page===0&&['같은 이름','작업 버전','변환 파일'].includes(filter))ordered.sort((a,b)=>a.group.localeCompare(b.group,'ko')||(filter==='같은 이름'?Number(b.protected)-Number(a.protected):0)||b.size-a.size);else if(page===2)ordered.sort((a,b)=>(rankSort.startsWith('date')?(a.modified||0)-(b.modified||0):a.size-b.size)*(rankSort.endsWith('desc')?-1:1)||a.name.localeCompare(b.name,'ko'));else ordered.sort((a,b)=>b.size-a.size);
- for(const r of ordered.slice(0,limit)){
+ let group='';
+ for(const r of shown){
  if(r.group&&r.group!==group){group=r.group;list.append(make('h3','group',group.split(/[\\/]/).pop().replace(/\s*\(\d+\)(?=\.[^.]+$|$)/,'')+' · '+items.filter(x=>x.group===group).length+'개 버전'))}
  const row=make('div','row'+(picked.has(r.id)?' selected':''));if(r.id)row.dataset.id=r.id;
  if(filterAllowed()&&eligible(r)){let box=make('input');box.type='checkbox';box.checked=picked.has(r.id);box.setAttribute('aria-label',r.name+' 선택');box.onchange=()=>{if(box.checked)picked.add(r.id);else picked.delete(r.id);row.classList.toggle('selected',box.checked);render()};row.onclick=e=>{if(!busy&&e.target!==box&&!e.target.closest('button'))box.click()};row.append(box)}
@@ -158,6 +159,13 @@ function render(){
  }
 }
 async function setKeeper(value){await work(async()=>{state=await api('keeper',value);picked.clear();issues.clear();say('남길 파일을 갱신했어요. 정리할 파일을 선택하세요.')})}
+function sortRows(items){
+ const ordered=items.slice();
+ if(page===0&&['같은 이름','작업 버전','변환 파일'].includes(filter))ordered.sort((a,b)=>a.group.localeCompare(b.group,'ko')||(filter==='같은 이름'?Number(b.protected)-Number(a.protected):0)||b.size-a.size);
+ else if(page===2)ordered.sort((a,b)=>(rankSort.startsWith('date')?(a.modified||0)-(b.modified||0):a.size-b.size)*(rankSort.endsWith('desc')?-1:1)||a.name.localeCompare(b.name,'ko'));
+ else ordered.sort((a,b)=>b.size-a.size);
+ return ordered;
+}
 function filterAllowed(){return page!==0||filter!=='ZIP 확인'}
 function guide(i,n,s){const g=make('div','guide'),t=make('div','text');t.append(make('b','',n),make('small','',s));g.append(tile(i),t);$('#list').append(g)}
 function footer(){const a=$('#actionbar');a.replaceChildren();const m=marked();if(!m.length)return;
@@ -174,7 +182,7 @@ function showChromeResult(v){
  $('#resultWindow > p').textContent=v.file_cleanup?'실제 파일은 휴지통으로 이동했어요. 기록 정리 실패 항목은 이유를 확인하세요.':'이전 버전에서 기록만 지운 결과예요.';
  $('#resultWindow th:nth-child(2)').textContent=v.file_cleanup?'파일 수정 날짜':'다운로드 날짜';
 }
-async function clearChrome(){let result;await work(async()=>{say('열린 크롬 탭에서 목록을 확인하고 지울 기록을 선택하세요.');result=await api('chrome');if(result.state)state=result.state;state.chrome_report=result;say('다운로드 파일 '+result.deleted.length+'개를 휴지통으로 옮겼어요.'+(result.save_warning||''))});if(result)showChromeResult(result)}
+async function clearChrome(){let result;await work(async()=>{say('열린 크롬 탭에서 목록을 확인하고 지울 기록을 선택하세요.');await api('chrome');let v;do{await new Promise(r=>setTimeout(r,1500));v=await api('chrome_status')}while(v.running);if(v.state)state=v.state;state.chrome_report=v;say('다운로드 파일 '+v.deleted.length+'개를 휴지통으로 옮겼어요.'+(v.save_warning||''));result=v});if(result)showChromeResult(result)}
 const progressDialog=$('#progressDialog');
 progressDialog.addEventListener('cancel',e=>e.preventDefault());
 function updateProgress(p) {
@@ -189,7 +197,7 @@ function updateProgress(p) {
 }
 async function applyWithProgress(data) {
  updateProgress({done:0,total:data.ids.length,success:0,failed:0,file:'파일 상태 확인 중'});
- $('#progressTitle').textContent=data.op==='restore'?'파일을 복원하고 있어요.':data.op==='stash'?'보관함으로 옮기고 있어요.':'휴지통으로 옮기고 있어요.';
+ $('#progressTitle').textContent=data.op==='restore'?'파일을 복원하고 있어요.':'휴지통으로 옮기고 있어요.';
  progressDialog.showModal();
  try {
   const result=await streamAction('apply',data,updateProgress);
@@ -272,8 +280,8 @@ function showCleanupResult(report,label){
  display();dialog.showModal();
 }
 async function apply(op){
- const m=marked(),label={trash:'휴지통으로 이동',restore:'원래 위치로 복원',stash:'보관함으로 이동'}[op];if(!m.length)return;
- if(!await modal(label+'할까요?',m.length+'개 · '+fmt(m.reduce((s,r)=>s+r.size,0))+'\n'+({trash:page===2?'선택한 폴더는 안의 파일까지 모두 휴지통으로 이동해요. Windows 휴지통에서 복원할 수 있어요.':'Windows 휴지통에서 복원할 수 있어요.',restore:'기존 파일과 충돌하면 건너뛰어요.',stash:'앱 보관함에서 되돌릴 수 있어요.'})[op],label))return;
+ const m=marked(),label={trash:'휴지통으로 이동',restore:'원래 위치로 복원'}[op];if(!m.length)return;
+ if(!await modal(label+'할까요?',m.length+'개 · '+fmt(m.reduce((s,r)=>s+r.size,0))+'\n'+({trash:page===2?'선택한 폴더는 안의 파일까지 모두 휴지통으로 이동해요. Windows 휴지통에서 복원할 수 있어요.':'Windows 휴지통에서 복원할 수 있어요.',restore:'기존 파일과 충돌하면 건너뛰어요.'})[op],label))return;
  let report;
  await work(async()=>{const selected=[...document.querySelectorAll('.row.selected')].filter(el=>{let b=el.getBoundingClientRect();return b.bottom>0&&b.top<innerHeight});const anim=op==='trash'&&!motionOff();const anims=[];
  try{

@@ -1,10 +1,9 @@
-"""Local scanner and reversible staging area. Python 3.9+."""
+"""Local scanner, validation and restore of the legacy holding area. Python 3.9+."""
 from analysis_views import grouped, folder_index
 import hashlib
 import re
 import os
 import stat
-import uuid
 import zipfile
 import zlib
 from collections import defaultdict, namedtuple
@@ -40,6 +39,11 @@ def signature(p):
 def filehash(p):
     with p.open("rb") as f:
         return digest(f)
+
+def headhash(p):
+    """Cheap pre-filter: only files whose first chunk matches get a full hash."""
+    with p.open("rb") as f:
+        return hashlib.sha256(f.read(CHUNK)).digest()
 
 def zipcheck(root, p):
     folder = p.with_suffix("")
@@ -113,17 +117,20 @@ def scan(root, progress=lambda s: None, folder_data=None, across=False):
         rows.append(Row(kind, p, files[p][0], files[p], note, keep))
     def newest(group):
         return sorted(group, key=lambda p: (-files[p][1], str(p).casefold(), str(p)))
-    for group in sizes.values():
-        if len(group) < 2:
-            continue
-        same = defaultdict(list)
-        for p in group:
+    def matches(paths, key):
+        out = defaultdict(list)
+        for p in paths:
             progress("내용 비교 · " + p.name)
             try:
-                same[filehash(p)].append(p)
+                out[key(p)].append(p)
             except OSError as e:
                 onerror(e)
-        for g in same.values():
+        return [g for g in out.values() if len(g) > 1]
+    for n, group in sizes.items():
+        if len(group) < 2:
+            continue
+        candidates = matches(group, headhash) if n > CHUNK else [group]
+        for g in (g for c in candidates for g in matches(c, filehash)):
             keep, *others = newest(g)
             for p in others:
                 add("복사본", p, "동일 내용 · 남길 파일 " + str(keep.relative_to(root)), keep)
@@ -174,12 +181,6 @@ def validate_row(root, row):
         if not check or not check[0]:
             raise ValueError("압축 내용이 달라졌습니다.")
 
-def stage(root, row, batch):
-    validate_row(root,row)
-    p = row.path
-    dest = root/HOLD/batch/p.relative_to(root)
-    relocate(root, p, dest)
-
 def relocate(root, src, dest):
     if not safe(root, src) or not src.is_file():
         raise ValueError("원본 경로를 확인할 수 없습니다.")
@@ -209,5 +210,3 @@ def held(root):
                 items.append((p, root.joinpath(*parts[1:])))
     return items
 
-def newbatch():
-    return uuid.uuid4().hex

@@ -1,5 +1,6 @@
 """DPI setup and a narrowly scoped Downloads display-name repair."""
 import ctypes as c
+import functools
 import os
 import re
 import uuid
@@ -23,6 +24,15 @@ def enable_dpi():
     except (OSError,AttributeError):user.SetProcessDPIAware()
 
 
+def data_dir():
+    """Per-user folder for files the app writes while running (not the install folder)."""
+    base=os.environ.get('LOCALAPPDATA')
+    folder=(Path(base) if base else Path.home()/'AppData'/'Local')/'SseukSsak'
+    folder.mkdir(parents=True,exist_ok=True)
+    return folder
+
+
+@functools.lru_cache(maxsize=1)
 def downloads_path():
     if os.name!='nt':return None
     shell=c.WinDLL('shell32');ole=c.WinDLL('ole32')

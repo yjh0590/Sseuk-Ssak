@@ -50,7 +50,7 @@ class IntegrationTests(unittest.TestCase):
         self.assertIn('파일 구조화',js)
         self.assertIn('[0,6,5,1,2,3,4].forEach',js)
         self.assertIn('if(page===5){space.hidden=true;renderSmart();return}',js)
-        self.assertIn("'smart_ui.js':'smart_ui.js'",desktop)
-        self.assertIn("if a=='smart':return smart.handle(v)",desktop)
+        self.assertIn("'smart_ui.js': ('smart_ui.js', JS)",desktop)
+        self.assertIn("'smart': lambda v, progress: self.smart.handle(v)",desktop)
 
 if __name__=='__main__':unittest.main()

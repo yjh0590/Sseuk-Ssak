@@ -30,16 +30,6 @@ def measure(paths):
         except OSError:volumes[volume]=dict(volume=volume,error='드라이브 용량을 측정하지 못했어요.')
     return list(volumes.values())
 
-def totals(paths):
-    result={k:0 for k in [*TYPES,'기타']};seen=set()
-    for path in set(paths):
-        p=Path(path)
-        try:
-            st=p.stat();key=(st.st_dev,st.st_ino)
-            if not p.is_file() or key in seen:continue
-            seen.add(key);result[category(p)]+=st.st_size
-        except OSError:pass
-    return result
 
 def comparison(before,after,moved):
     return dict(before=before,after=after,moved=moved)

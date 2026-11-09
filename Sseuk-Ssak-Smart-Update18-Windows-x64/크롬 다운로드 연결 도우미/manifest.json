@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "쓱-싹 · 크롬 다운로드 연결 도우미",
-  "version": "0.7.11",
+  "version": "0.7.18",
   "minimum_chrome_version": "96",
   "description": "쓱-싹 앱이 크롬 다운로드 목록에 연결하도록 돕습니다. 앱에서 실제 파일과 정리 대상을 확인한 후 선택한 항목을 정리하세요.",
   "permissions": [

@@ -13,9 +13,14 @@ class FolderItem:
     folder: bool
 
 
-def capture(root,path):
+def _check_location(root,path):
     if not safe(root,path) or path.is_relative_to(APP) or APP.is_relative_to(path) or HOLD.casefold() in [v.casefold() for v in path.parts]:
         raise ValueError('앱·보관함·연결 경로는 이 화면에서 정리하지 않아요.')
+
+
+def capture(root,path):
+    """Walk the disk now and record every entry below path."""
+    _check_location(root,path)
     tree={}
     if path.is_dir():
         def error(e):raise e
@@ -32,6 +37,29 @@ def capture(root,path):
     return FolderItem(path,size,signature(path),tree,path.is_dir())
 
 
+def from_scan(root,path,files,dirs):
+    """Build a preview from scan data instead of re-walking the subtree.
+
+    files: {path: signature} of scanned files below path; dirs: scanned folders below path.
+    validate() later compares this outline with the disk once, right before moving.
+    """
+    _check_location(root,path)
+    tree={'.':(True,None)}
+    for d in dirs:tree[str(d.relative_to(path))]=(True,None)
+    for f,stamp in files.items():tree[str(f.relative_to(path))]=(False,stamp)
+    size=sum(stamp[0] for isdir,stamp in tree.values() if not isdir)
+    return FolderItem(path,size,None,tree,True)
+
+
+def _outline(item):
+    # Folder timestamps change with their contents, which the file entries already cover.
+    # desktop.ini is skipped by the scanner, so it is left out on both sides.
+    return {rel:(isdir,None if isdir else stamp) for rel,(isdir,stamp) in item.tree.items()
+            if Path(rel).name.casefold()!='desktop.ini'}
+
+
 def validate(root,item):
     current=capture(root,item.path)
-    if current!=item:raise ValueError('목록을 연 뒤 파일 또는 폴더 내용이 바뀌었어요. 다시 검사해 주세요.')
+    same=(current.path==item.path and current.folder==item.folder and _outline(current)==_outline(item)
+          and (item.folder or current.stamp==item.stamp))
+    if not same:raise ValueError('목록을 연 뒤 파일 또는 폴더 내용이 바뀌었어요. 다시 검사해 주세요.')

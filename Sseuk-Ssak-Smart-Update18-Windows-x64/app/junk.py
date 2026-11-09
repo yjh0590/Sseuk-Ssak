@@ -1,5 +1,4 @@
 """Conservative candidates; all deletion requests go through Windows Shell."""
-import ctypes
 import os
 import time
 from dataclasses import dataclass
@@ -72,41 +71,3 @@ def collect(folder, temp):
                 except OSError as e:
                     errors.append(str(e))
     return sorted(rows.values(),key=lambda r:-r.stamp[0]),errors
-
-def recycle_files(paths):
-    from ctypes import wintypes as w
-    class Operation(ctypes.Structure):
-        if ctypes.sizeof(ctypes.c_void_p) == 4:
-            _pack_ = 1
-        _fields_ = [("window",w.HWND),("func",w.UINT),("source",w.LPCWSTR),
-                    ("dest",w.LPCWSTR),("flags",w.WORD),("aborted",w.BOOL),
-                    ("mapping",w.HANDLE),("title",w.LPCWSTR)]
-    for p in paths:
-        if not p.is_absolute() or any(c in str(p) for c in "*?") or len(str(p).encode("utf-16-le"))//2 >= 260 or ctypes.windll.kernel32.GetDriveTypeW(str(p.anchor)) != 3:
-            raise ValueError("로컬 고정 드라이브의 일반 경로만 휴지통으로 보낼 수 있어요.")
-    src = ctypes.create_unicode_buffer("\0".join(map(str, paths))+"\0")
-    op = Operation()
-    op.func = 3  # FO_DELETE
-    op.source = ctypes.cast(src,w.LPCWSTR)
-    op.flags = 0x0040 | 0x4000 | 0x0010 | 0x1000  # allow undo, permanent warning, no routine confirmation, no recursion
-    call = ctypes.windll.shell32.SHFileOperationW
-    call.argtypes,call.restype = [ctypes.POINTER(Operation)],ctypes.c_int
-    code = call(ctypes.byref(op))
-    if code or op.aborted:
-        raise OSError(f"일부 파일이 사용 중이거나 작업이 취소됐어요. Windows 결과 {code}")
-
-def clean(rows, temp, send=recycle_files, completed=None):
-    ready, errors = [], []
-    for r in rows:
-        try:
-            if not allowed(r.root,r.path) or signature(r.path)!=r.stamp or reason(r.path,r.stamp,temp)!=r.reason:
-                raise ValueError("검사 후 변경되어 제외")
-            ready.append(r.path)
-        except (ValueError,OSError) as e:
-            errors.append(f"{r.path} · {e}")
-    if ready:
-        try: send(ready)
-        except (OSError,ValueError) as e: errors.append(str(e))
-    moved = [p for p in ready if not os.path.lexists(p)]
-    if completed is not None: completed.extend(moved)
-    return len(moved), errors

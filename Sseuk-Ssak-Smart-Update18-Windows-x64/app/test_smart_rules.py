@@ -72,7 +72,10 @@ class OrganizerTests(unittest.TestCase):
     def test_security(self):
         for p in ('../회의록.txt', '/회의록.txt', '.smart_organizer.json'):
             with self.assertRaises(RuleViolation): self.o.create(p)
-        (self.root/'01_링크').symlink_to(self.root, target_is_directory=True)
+        try:
+            (self.root/'01_링크').symlink_to(self.root, target_is_directory=True)
+        except OSError as exc:
+            self.skipTest(f'심볼릭 링크를 만들 권한이 없어요 (개발자 모드 또는 관리자 필요): {exc}')
         with self.assertRaises(RuleViolation): self.o.create('01_링크/회의록.txt')
 
 if __name__ == '__main__':

@@ -43,6 +43,21 @@ class SmartService:
         if not self.manager:
             if op == 'list': return self.snapshot()
             raise RuleViolation('먼저 관리 폴더를 선택하거나 가상 테스트를 시작해 주세요.')
+        try:
+            return self._apply(op, data)
+        except KeyError as exc:
+            raise RuleViolation(f'필수 입력값이 빠졌어요: {exc.args[0]}') from exc
+
+    @staticmethod
+    def _number(value):
+        if value in (None, ''):
+            return None
+        try:
+            return int(str(value).strip())
+        except ValueError:
+            raise RuleViolation('폴더 번호는 1~98 사이의 숫자로 입력해 주세요.') from None
+
+    def _apply(self, op, data):
         m = self.manager
         if op == 'list':
             if 'folder' in data:
@@ -51,7 +66,7 @@ class SmartService:
                 self.current = str(p.relative_to(self.root))
             return self.snapshot()
         if op == 'mkdir':
-            result = m.mkdir(self.current, data['name'], data.get('kind','general'), int(data['number']) if data.get('number') else None, data.get('when') or None)
+            result = m.mkdir(self.current, data['name'], data.get('kind','general'), self._number(data.get('number')), data.get('when') or None)
         elif op == 'create':
             if Path(data['name']).suffix.lower() not in {'.txt','.md','.csv'}:
                 raise RuleViolation('새 텍스트 문서는 .txt, .md, .csv 확장자로 생성해 주세요.')

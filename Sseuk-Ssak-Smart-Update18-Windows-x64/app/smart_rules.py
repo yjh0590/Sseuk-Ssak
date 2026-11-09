@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""스마트 파일 정리 도구. Python 3.10+, 외부 의존성 없음."""
+"""스마트 파일 정리 도구. Python 3.9+, 외부 의존성 없음."""
 import argparse
 import json
 import re

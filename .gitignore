@@ -1,0 +1,8 @@
+# Created at runtime — never commit (pair.json is the Chrome helper's HMAC secret key)
+pair.json
+chrome-last-result.json
+display-backup/
+
+# Python bytecode written outside the bundled runtime
+__pycache__/
+*.pyc

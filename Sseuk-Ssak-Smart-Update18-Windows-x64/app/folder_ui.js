@@ -10,10 +10,12 @@ async function openFolderCompare(host=null){
   bar.append(make('b','',selected.size+'개 폴더 선택'));
   btn(bar,'선택 해제',()=>{selected.clear();for(const box of content.querySelectorAll('[data-folder-choice]'))box.checked=false;updateFolderActions()});
   btn(bar,'선택한 폴더 삭제',async()=>{
-   if(busy||scanning)return;lock(true);
+   if(busy||scanning)return;
+   // In-page modal: a native confirm() would pause the keep-alive ping to the app server.
+   let preview;lock(true);try{preview=await api('folder_bulk_prepare',{ids:[...selected.keys()]})}catch(e){say(e.message);return}finally{lock(false)}
+   if(!await modal('선택한 폴더 '+preview.paths.length+'개를 휴지통으로 옮길까요?',preview.paths.join('\n')+'\n\n하위 파일과 폴더도 모두 함께 이동합니다. 내용 비교를 하지 않은 항목도 포함될 수 있습니다. 선택하지 않은 폴더는 유지됩니다.','휴지통으로 이동'))return;
+   lock(true);
    try{
-    const preview=await api('folder_bulk_prepare',{ids:[...selected.keys()]});
-    if(!confirm('선택한 폴더 '+preview.paths.length+'개를 휴지통으로 옮길까요?\n\n'+preview.paths.join('\n')+'\n\n하위 파일과 폴더도 모두 함께 이동합니다. 내용 비교를 하지 않은 항목도 포함될 수 있습니다. 선택하지 않은 폴더는 유지됩니다.'))return;
     const result=await api('folder_bulk_remove',{token:preview.token,confirmed:true});state=result.state;selected.clear();bar.replaceChildren();
     content.replaceChildren(make('p','','휴지통 이동 '+result.moved.length+'개 · 실패 '+result.failed.length+'개. 목록을 다시 찾아 주세요.'));
     for(const error of result.failed)content.append(make('p','smart-fail',error.path+' — '+error.message));say('폴더 정리가 완료되었습니다. 복원은 Windows 휴지통에서 할 수 있습니다.');
@@ -43,7 +45,7 @@ async function openFolderCompare(host=null){
  show('후보에만 있는 파일',r.only_source);show('기준에만 있는 파일',r.only_reference);show('같은 경로지만 내용이 다른 파일',r.different);show('후보에만 있는 폴더',r.only_source_dirs);
  result.append(make('p','',r.subset?'후보의 모든 파일·폴더가 기준에 있으며 파일 내용도 같습니다. 이동할 폴더를 다시 확인하세요.':'주의: 후보에만 있는 파일/폴더 또는 내용 차이가 있습니다. 휴지통 이동 시 해당 데이터도 함께 이동합니다.'));
  let ack=null;if(!r.subset){const label=make('label','folder-ack');ack=make('input');ack.type='checkbox';label.append(ack,document.createTextNode('차이를 확인했으며 후보 폴더 전체를 휴지통으로 옮기겠습니다.'));result.append(label)}
- const move=btn(result,'후보 폴더를 휴지통으로 이동',async()=>{if(ack&&!ack.checked){alert('먼저 폴더 차이와 확인 항목을 확인해 주세요.');return}if(!confirm('후보 폴더 전체를 휴지통으로 옮길까요?\n'+r.source+'\n\n기준 폴더는 유지됩니다.'))return;move.disabled=true;try{const v=await api('folder_remove',{token:r.token,confirmed:true,allow_unique:!!ack?.checked});state=v.state;picked.clear();issues.clear();say(v.message);if(!host)d.close();render()}catch(e){result.append(make('p','smart-fail',e.message));move.disabled=false}},'primary');
+ const move=btn(result,'후보 폴더를 휴지통으로 이동',async()=>{if(ack&&!ack.checked){await modal('확인이 필요해요','먼저 폴더 차이와 확인 항목을 확인해 주세요.');return}if(!await modal('후보 폴더 전체를 휴지통으로 옮길까요?',r.source+'\n\n기준 폴더는 유지됩니다.','휴지통으로 이동'))return;move.disabled=true;try{const v=await api('folder_remove',{token:r.token,confirmed:true,allow_unique:!!ack?.checked});state=v.state;picked.clear();issues.clear();say(v.message);if(!host)d.close();render()}catch(e){result.append(make('p','smart-fail',e.message));move.disabled=false}},'primary');
  }catch(e){result.append(make('p','smart-fail',e.message))}finally{compareButton.disabled=false}
  },'outline-control');source.onchange=reference.onchange=()=>result.replaceChildren();details.append(result);content.append(card)}
  for(const error of data.errors)content.append(make('p','smart-fail',error.path+' — '+error.message));if(!host){btn(d,'닫기',()=>d.close());d.showModal()}

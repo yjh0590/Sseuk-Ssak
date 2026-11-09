@@ -14,6 +14,11 @@ APP_DIR = Path(__file__).resolve().parent
 HELPER = APP_DIR.parent / "크롬 다운로드 연결 도우미"
 
 
+def result_file():
+    from windows_ui import data_dir
+    return data_dir() / "chrome-last-result.json"
+
+
 def pairing_key():
     p = HELPER / "pair.json"
     if not p.exists():
@@ -92,7 +97,7 @@ def run_cleanup(open_browser=launch, timeout=900):
                     result=session.move(value['id'],recycle)
                     payload=','.join(map(str,sorted(result['recordIds'])))
                     result['eraseProof']=hmac.new(key,f'{url}|{expires}|{payload}'.encode(),'sha256').hexdigest()
-                    try:(APP_DIR/'chrome-last-result.json').write_text(json.dumps(session.finish(),ensure_ascii=False),encoding='utf-8')
+                    try:result_file().write_text(json.dumps(session.finish(),ensure_ascii=False),encoding='utf-8')
                     except OSError:pass
                 elif action=='finish':
                     result=session.finish(value.get('record_failed',[]));report.append(result)
