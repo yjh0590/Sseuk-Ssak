@@ -1,4 +1,5 @@
 """Serve the desktop renderer on a private, short-lived loopback address."""
+
 import ctypes
 import json
 import os
@@ -14,6 +15,7 @@ from pathlib import Path
 import chrome_link
 import folder_ops
 import junk
+import preview
 import storage_view
 import windows_ui
 from analysis_views import folder_index
@@ -52,6 +54,7 @@ def stamp_text(seconds):
 def ask_directory(initial):
     import tkinter as tk
     from tkinter import filedialog
+
     win = tk.Tk()
     win.withdraw()
     win.attributes('-topmost', True)
@@ -96,7 +99,9 @@ class App:
             'scan': self.on_scan,
             'recycle_info': lambda v, progress: {'size': storage_view.recycle_size(None)},
             'empty_recycle': self.on_empty_recycle,
-            'repair_downloads': lambda v, progress: windows_ui.restore_downloads_label(windows_ui.data_dir() / 'display-backup'),
+            'repair_downloads': lambda v, progress: windows_ui.restore_downloads_label(
+                windows_ui.data_dir() / 'display-backup'
+            ),
             'rank': self.on_rank,
             'open_file': self.on_open_file,
             'reveal': self.on_reveal,
@@ -137,7 +142,9 @@ class App:
     def pack(self, p, n, reason, kind, obj, group=None):
         key = secrets.token_hex(10)
         self.refs[key] = (kind, obj)
-        return dict(id=key, path=str(p), name=windows_ui.display_name(p), size=n, note=reason, kind=kind, group=str(group or ''))
+        return dict(
+            id=key, path=str(p), name=windows_ui.display_name(p), size=n, note=reason, kind=kind, group=str(group or '')
+        )
 
     def same_name_stamps(self):
         return {r.path: r.stamp for r in self.rows if r.kind == '같은 이름'}
@@ -150,7 +157,9 @@ class App:
         self.last_storage = None
         rows, _, self.logs = scan(self.root, progress=report, folder_data=self.index, across=self.across)
         self.raw_rows = list(rows)
-        self.rows = organize_rows(self.raw_rows, self.word_mode, self.word_keyword, self.similar_names, self.keeper_mode, self.overrides)
+        self.rows = organize_rows(
+            self.raw_rows, self.word_mode, self.word_keyword, self.similar_names, self.keeper_mode, self.overrides
+        )
         self.stash = held(self.root)
         self.keeper_stamps = self.same_name_stamps()
         self.overrides.clear()
@@ -160,28 +169,48 @@ class App:
         # Folder-size ids belong to the separate rank list; keep them valid across refreshes.
         for key in [k for k, (kind, _) in self.refs.items() if kind != FOLDER_SIZE]:
             del self.refs[key]
-        files = [self.pack(r.path, r.size, r.detail, r.kind, r, r.group) | {
-                    'compare': str(r.keep or ''),
-                    'date': stamp_text(r.stamp[1] / 1e9),
-                    'protected': r.kind == '같은 이름' and not r.keep}
-                 for r in self.rows]
+        files = [
+            self.pack(r.path, r.size, r.detail, r.kind, r, r.group)
+            | {
+                'compare': str(r.keep or ''),
+                'date': stamp_text(r.stamp[1] / 1e9),
+                'protected': r.kind == '같은 이름' and not r.keep,
+            }
+            for r in self.rows
+        ]
         temp = [self.pack(r.path, r.stamp[0], r.reason, '정크 파일', r) for r in self.junks]
         saved = []
         for p, d in self.stash:
             try:
-                saved.append(self.pack(d, p.stat().st_size, '원래 위치로 복원할 수 있어요.', '보관함', (p, d)) | {'reveal': str(p)})
+                saved.append(
+                    self.pack(d, p.stat().st_size, '원래 위치로 복원할 수 있어요.', '보관함', (p, d))
+                    | {'reveal': str(p)}
+                )
             except OSError:
                 pass
         root = self.root
         if space is None:
             space = storage_view.measure([root]) if root else []
         return dict(
-            root=str(root or ''), files=files, junk=temp, stash=saved, logs=self.logs,
-            temp=str(junk.user_temp() or ''), filters=list(FILTERS), chrome_report=self.chrome_history(),
-            keeper_mode=self.keeper_mode, word_mode=self.word_mode, word_keyword=self.word_keyword,
-            similar_names=self.similar_names, root_name=windows_ui.display_name(root) if root else '',
-            extensions=sorted({r.path.suffix.lower().lstrip('.') for r in self.rows if r.kind == '전체 파일' and r.path.suffix}),
-            storage_current=space, storage_comparison=self.last_storage)
+            root=str(root or ''),
+            files=files,
+            junk=temp,
+            stash=saved,
+            logs=self.logs,
+            temp=str(junk.user_temp() or ''),
+            filters=list(FILTERS),
+            chrome_report=self.chrome_history(),
+            keeper_mode=self.keeper_mode,
+            word_mode=self.word_mode,
+            word_keyword=self.word_keyword,
+            similar_names=self.similar_names,
+            root_name=windows_ui.display_name(root) if root else '',
+            extensions=sorted(
+                {r.path.suffix.lower().lstrip('.') for r in self.rows if r.kind == '전체 파일' and r.path.suffix}
+            ),
+            storage_current=space,
+            storage_comparison=self.last_storage,
+        )
 
     @staticmethod
     def chrome_history():
@@ -223,7 +252,9 @@ class App:
         return self.rescan_files(self.folder_compare.execute_bulk(v.get('token'), v.get('confirmed'), recycle))
 
     def on_folder_remove(self, v, progress):
-        return self.rescan_files(self.folder_compare.move(v['token'], v.get('confirmed'), v.get('allow_unique'), recycle))
+        return self.rescan_files(
+            self.folder_compare.move(v['token'], v.get('confirmed'), v.get('allow_unique'), recycle)
+        )
 
     def on_grouping(self, v, progress):
         mode = v.get('word_mode', 'off')
@@ -274,6 +305,7 @@ class App:
             if now - last_update >= 0.25:
                 progress(message)
                 last_update = now
+
         report('임시 파일을 확인하고 있어요.' if v['mode'] == 'junk' else '폴더 안의 파일을 확인하고 있어요.')
         self.collect(v['mode'], report)
         progress('검사 결과를 정리하고 있어요.')
@@ -326,9 +358,17 @@ class App:
                 row = self.pack(target, item.size, note, FOLDER_SIZE, item)
                 row.update(folder=item.folder, modified=modified, date=stamp_text(modified))
             except (OSError, ValueError) as e:
-                row = dict(id=secrets.token_hex(10), path=str(target), name=windows_ui.display_name(target),
-                           size=totals.get(target, [0])[0], folder=target.is_dir(), modified=0, date='확인 불가',
-                           protected=True, note=str(e))
+                row = dict(
+                    id=secrets.token_hex(10),
+                    path=str(target),
+                    name=windows_ui.display_name(target),
+                    size=totals.get(target, [0])[0],
+                    folder=target.is_dir(),
+                    modified=0,
+                    date='확인 불가',
+                    protected=True,
+                    note=str(e),
+                )
             if row['folder']:
                 row['count'] = totals.get(target, [0, 0])[1]
             result.append(row)
@@ -341,6 +381,8 @@ class App:
         p = ref[1].path
         if not p.is_file():
             raise ValueError('파일이 없거나 열 수 없어요. 다시 검사해 주세요.')
+        if p.suffix.lower() in preview.EXECUTABLE:  # 실행하지 않고 정보만 보여 준다
+            return {'preview': {'title': p.name + ' · 실행하지 않고 미리보기', 'detail': preview.describe(p)}}
         try:
             os.startfile(str(p))
         except OSError as e:
@@ -370,6 +412,7 @@ class App:
                 self.chrome_outcome = ('ok', chrome_link.run_cleanup())
             except Exception as e:
                 self.chrome_outcome = ('error', str(e))
+
         self.chrome_outcome = None
         self.chrome_job = threading.Thread(target=run, daemon=True)
         self.chrome_job.start()
@@ -398,17 +441,28 @@ class App:
         if op not in ('trash', 'restore') or not ids or any(k not in refs for k in ids):
             raise ValueError('목록을 다시 확인해 주세요.')
         kinds = {refs[k][0] for k in ids}
-        if len(kinds) != 1 or ('보관함' in kinds) != restore or ('정크 파일' in kinds and op != 'trash') or 'ZIP 확인' in kinds:
+        if (
+            len(kinds) != 1
+            or ('보관함' in kinds) != restore
+            or ('정크 파일' in kinds and op != 'trash')
+            or 'ZIP 확인' in kinds
+        ):
             raise ValueError('같은 종류의 파일을 선택해 주세요.')
         selected = [refs[k][1] for k in ids]
         paths = set() if restore else {r.path for r in selected}
-        keep = {r.group: r.path for r in self.rows
-                if r.group and r.kind in kinds and r.path not in paths and r.path.is_file()}
+        keep = {
+            r.group: r.path
+            for r in self.rows
+            if r.group and r.kind in kinds and r.path not in paths and r.path.is_file()
+        }
         ok, errors = [], {}
         progress(dict(done=0, total=len(ids), success=0, failed=0, file='파일 상태 확인 중'))
         set_ids = set(ids)
-        kept_paths = {item[0] if restore else item.path
-                      for key, (kind, item) in refs.items() if kind in kinds and key not in set_ids}
+        kept_paths = {
+            item[0] if restore else item.path
+            for key, (kind, item) in refs.items()
+            if kind in kinds and key not in set_ids
+        }
         kept_paths.update(r.keep for r in selected if getattr(r, 'keep', None))
         report = CleanupResult(kept_paths)
         before_space = storage_view.measure([r[0] if restore else r.path for r in selected])
@@ -427,8 +481,11 @@ class App:
                     entry['size'] = obj.size
                     recycle(obj.path)
                 elif '정크 파일' in kinds:
-                    if (not junk.allowed(obj.root, obj.path) or signature(obj.path) != obj.stamp
-                            or junk.reason(obj.path, obj.stamp, junk.user_temp()) != obj.reason):
+                    if (
+                        not junk.allowed(obj.root, obj.path)
+                        or signature(obj.path) != obj.stamp
+                        or junk.reason(obj.path, obj.stamp, junk.user_temp()) != obj.reason
+                    ):
                         raise ValueError('검사 후 바뀐 파일이에요. 다시 검사해 주세요.')
                     recycle(obj.path)
                 else:
@@ -456,12 +513,21 @@ class App:
                 errors[key] = str(e)
                 report.failed.append(dict(entry, reason=str(e)))
             progress(dict(done=step, total=len(ids), success=len(ok), failed=len(errors), file=current.name))
-        progress(dict(done=len(ids), total=len(ids), success=len(ok), failed=len(errors),
-                      file='결과와 디스크 용량을 확인하고 있어요.', phase='finalizing'))
+        progress(
+            dict(
+                done=len(ids),
+                total=len(ids),
+                success=len(ok),
+                failed=len(errors),
+                file='결과와 디스크 용량을 확인하고 있어요.',
+                phase='finalizing',
+            )
+        )
         gone = set() if restore else {refs[k][1].path for k in ok}
 
         def removed(path):
             return path in gone or any(parent in gone for parent in path.parents)
+
         self.raw_rows = [r for r in self.raw_rows if not removed(r.path)]
         self.rows = [r for r in self.rows if not removed(r.path)]
         self.junks = [r for r in self.junks if not removed(r.path)]
@@ -511,7 +577,11 @@ def make_handler(app, token, host, origin):
             self.response(200, (BASE / file).read_bytes(), typ)
 
         def do_POST(self):
-            if self.headers.get('Origin') != origin or self.headers.get('Host') != host or not self.path.startswith(prefix + 'api/'):
+            if (
+                self.headers.get('Origin') != origin
+                or self.headers.get('Host') != host
+                or not self.path.startswith(prefix + 'api/')
+            ):
                 return self.send_error(403)
             try:
                 n = int(self.headers.get('Content-Length', 0))
@@ -540,6 +610,7 @@ def make_handler(app, token, host, origin):
                     self.wfile.flush()
                 except (BrokenPipeError, ConnectionResetError):
                     pass
+
             try:
                 event({'result': app.dispatch(action, v, lambda p: event({'progress': p}))})
             except Exception as e:
@@ -553,9 +624,9 @@ def start():
     os.environ['TCL_LIBRARY'] = str(BASE / 'python/tcl/tcl8.6')
     os.environ['TK_LIBRARY'] = str(BASE / 'python/tcl/tk8.6')
     try:
-        chrome = chrome_link.find_chrome()
-    except FileNotFoundError:
-        raise RuntimeError('이 버전은 Google Chrome이 필요해요. Chrome 설치 후 다시 실행해 주세요.')
+        browser = chrome_link.find_browser()
+    except FileNotFoundError as e:
+        raise RuntimeError(str(e))
     app = App()
     token = secrets.token_urlsafe(32)
     with HTTPServer(('127.0.0.1', 0), BaseHTTPRequestHandler) as server:
@@ -563,7 +634,7 @@ def start():
         origin = 'http://' + host
         server.RequestHandlerClass = make_handler(app, token, host, origin)
         server.timeout = 3
-        subprocess.Popen([str(chrome), '--app=' + origin + '/' + token + '/'])
+        subprocess.Popen([str(browser), '--app=' + origin + '/' + token + '/'])
         last = time.monotonic()
         while time.monotonic() - last < IDLE_SECONDS:
             if select.select([server], [], [], 3)[0]:

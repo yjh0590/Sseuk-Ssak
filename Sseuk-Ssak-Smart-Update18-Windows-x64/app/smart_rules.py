@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """스마트 파일 정리 도구. Python 3.9+, 외부 의존성 없음."""
+
 import argparse
 import json
 import re
-import shutil
 from datetime import date
 from pathlib import Path
 
@@ -12,13 +12,42 @@ MAX_FAVORITES = 5
 ARCHIVE = '99_아카이브'
 DEPTH_WARNING = '폴더 깊이는 최대 5단계까지만 허용됩니다.'
 FAVORITES_WARNING = '즐겨찾기는 최대 5개까지만 등록 가능합니다. 기존 항목을 삭제 후 추가해 주세요.'
-KEYWORDS = ('회의록', '기획안', '양식', '보고서', '제안서', '계획서', '문서', '계약', '정산', '증빙', '영수증', '세금계산서')
+KEYWORDS = (
+    '회의록',
+    '기획안',
+    '양식',
+    '보고서',
+    '제안서',
+    '계획서',
+    '문서',
+    '계약',
+    '정산',
+    '증빙',
+    '영수증',
+    '세금계산서',
+)
 FINANCIAL = ('정산', '증빙', '계약', '영수증', '세금계산서')
-DOCUMENT_EXTS = {'.pdf', '.doc', '.docx', '.hwp', '.hwpx', '.txt', '.md', '.odt', '.ppt', '.pptx', '.xls', '.xlsx', '.csv'}
+DOCUMENT_EXTS = {
+    '.pdf',
+    '.doc',
+    '.docx',
+    '.hwp',
+    '.hwpx',
+    '.txt',
+    '.md',
+    '.odt',
+    '.ppt',
+    '.pptx',
+    '.xls',
+    '.xlsx',
+    '.csv',
+}
 VERSION = re.compile(r'_v(\d+)\.(\d+)$')
+
 
 class RuleViolation(ValueError):
     pass
+
 
 class Organizer:
     def __init__(self, root):
@@ -27,7 +56,11 @@ class Organizer:
         self.state = self.root / '.smart_organizer.json'
 
     def result(self, action, path=None, message='정리 기준을 적용했습니다.'):
-        return {'실행 결과': action, '적용된 경로/파일명': str(path.relative_to(self.root)) if path else '-', '안내 메시지': message}
+        return {
+            '실행 결과': action,
+            '적용된 경로/파일명': str(path.relative_to(self.root)) if path else '-',
+            '안내 메시지': message,
+        }
 
     def path(self, relative):
         p = Path(relative)
@@ -49,7 +82,14 @@ class Organizer:
     def valid_component(self, name):
         if not name or name in {'.', '..'} or re.search(r'[<>:"/\\|?*\x00-\x1f]', name) or name.endswith((' ', '.')):
             raise RuleViolation('사용할 수 없는 이름입니다.')
-        if name.split('.')[0].upper() in {'CON','PRN','AUX','NUL', *[f'COM{i}' for i in range(1,10)], *[f'LPT{i}' for i in range(1,10)]}:
+        if name.split('.')[0].upper() in {
+            'CON',
+            'PRN',
+            'AUX',
+            'NUL',
+            *[f'COM{i}' for i in range(1, 10)],
+            *[f'LPT{i}' for i in range(1, 10)],
+        }:
             raise RuleViolation('운영체제 예약 이름은 사용할 수 없습니다.')
 
     def folder_name(self, name):
@@ -64,7 +104,9 @@ class Organizer:
             return
         if re.fullmatch(r'\d{4}-[1-4]Q_.+', name):
             return
-        raise RuleViolation('일반 폴더는 01~98_이름, 미디어는 YYYY_이름 또는 YYYY_MM_이름, 단기 프로젝트는 YYYY-nQ_이름을 사용하세요.')
+        raise RuleViolation(
+            '일반 폴더는 01~98_이름, 미디어는 YYYY_이름 또는 YYYY_MM_이름, 단기 프로젝트는 YYYY-nQ_이름을 사용하세요.'
+        )
 
     def check_folders(self, folder):
         parts = folder.relative_to(self.root).parts
@@ -95,7 +137,7 @@ class Organizer:
                 raise RuleViolation('미디어 날짜는 YYYY 또는 YYYY_MM 형식이어야 합니다.')
             full = f'{prefix}_{name}'
         elif kind == 'project':
-            prefix = when or f'{date.today().year}-{(date.today().month-1)//3+1}Q'
+            prefix = when or f'{date.today().year}-{(date.today().month - 1) // 3 + 1}Q'
             if not re.fullmatch(r'\d{4}-[1-4]Q', prefix):
                 raise RuleViolation('프로젝트 날짜는 YYYY-nQ 형식이어야 합니다.')
             full = f'{prefix}_{name}'
@@ -136,12 +178,14 @@ class Organizer:
                     raise RuleViolation('날짜는 유효한 YYYY_MM_DD 형식이어야 합니다.')
                 stem = document_date + '_' + stem
         if ext.lower() in DOCUMENT_EXTS and not any(word in stem for word in KEYWORDS):
-            raise RuleViolation('일반 문서는 회의록·기획안·양식 등 키워드를 포함하세요. --category로 지정할 수 있습니다.')
+            raise RuleViolation(
+                '일반 문서는 회의록·기획안·양식 등 키워드를 포함하세요. --category로 지정할 수 있습니다.'
+            )
         return stem + ext
 
     def versioned(self, dest, revision=False):
         match = VERSION.search(dest.stem)
-        base = dest.stem[:match.start()] if match else dest.stem
+        base = dest.stem[: match.start()] if match else dest.stem
         major, minor = (int(match[1]), int(match[2])) if match else (1, 0)
         if revision:
             minor += 1
@@ -245,7 +289,11 @@ class Organizer:
     def favorite(self, action, target=None):
         items = self.load_favorites()
         if action == 'list':
-            return {'실행 결과': '즐겨찾기 조회 완료', '적용된 경로/파일명': items, '안내 메시지': f'{len(items)}/{MAX_FAVORITES}개 등록됨 (이 도구 내부 즐겨찾기)'}
+            return {
+                '실행 결과': '즐겨찾기 조회 완료',
+                '적용된 경로/파일명': items,
+                '안내 메시지': f'{len(items)}/{MAX_FAVORITES}개 등록됨 (이 도구 내부 즐겨찾기)',
+            }
         p = self.path(target)
         rel = str(p.relative_to(self.root))
         if action == 'add':
@@ -263,32 +311,54 @@ class Organizer:
         self.store_favorites(items)
         return self.result('즐겨찾기 변경 완료', p)
 
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', required=True, help='관리할 루트 폴더 (깊이 0)')
     sub = parser.add_subparsers(dest='command', required=True)
-    p = sub.add_parser('mkdir'); p.add_argument('parent'); p.add_argument('name')
-    p.add_argument('--kind', choices=['general','media','project','archive'], default='general')
-    p.add_argument('--number', type=int); p.add_argument('--when')
-    for command in ('create','move','rename'):
+    p = sub.add_parser('mkdir')
+    p.add_argument('parent')
+    p.add_argument('name')
+    p.add_argument('--kind', choices=['general', 'media', 'project', 'archive'], default='general')
+    p.add_argument('--number', type=int)
+    p.add_argument('--when')
+    for command in ('create', 'move', 'rename'):
         p = sub.add_parser(command)
-        if command != 'create': p.add_argument('source')
-        p.add_argument('target'); p.add_argument('--category'); p.add_argument('--date', dest='document_date')
-        if command == 'create': p.add_argument('--text', default='')
-    p = sub.add_parser('revise'); p.add_argument('source'); p.add_argument('--text', required=True)
-    p = sub.add_parser('archive'); p.add_argument('source')
-    p = sub.add_parser('favorite'); p.add_argument('action', choices=['add','remove','list']); p.add_argument('target', nargs='?')
-    args = vars(parser.parse_args()); root = args.pop('root'); command = args.pop('command')
+        if command != 'create':
+            p.add_argument('source')
+        p.add_argument('target')
+        p.add_argument('--category')
+        p.add_argument('--date', dest='document_date')
+        if command == 'create':
+            p.add_argument('--text', default='')
+    p = sub.add_parser('revise')
+    p.add_argument('source')
+    p.add_argument('--text', required=True)
+    p = sub.add_parser('archive')
+    p.add_argument('source')
+    p = sub.add_parser('favorite')
+    p.add_argument('action', choices=['add', 'remove', 'list'])
+    p.add_argument('target', nargs='?')
+    args = vars(parser.parse_args())
+    root = args.pop('root')
+    command = args.pop('command')
     try:
         manager = Organizer(root)
         if command == 'favorite' and args['action'] != 'list' and not args['target']:
             raise RuleViolation('대상 경로를 지정해 주세요.')
-        method = {'rename':'transfer', 'move':'transfer', 'revise':'save_revision'}.get(command, command)
+        method = {'rename': 'transfer', 'move': 'transfer', 'revise': 'save_revision'}.get(command, command)
         print(json.dumps(getattr(manager, method)(**args), ensure_ascii=False, indent=2))
         return 0
     except (ValueError, OSError, KeyError, TypeError) as exc:
-        print(json.dumps({'실행 결과':'처리 거부/실패', '적용된 경로/파일명':'-', '안내 메시지':str(exc)}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {'실행 결과': '처리 거부/실패', '적용된 경로/파일명': '-', '안내 메시지': str(exc)},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 1
+
 
 if __name__ == '__main__':
     raise SystemExit(main())
