@@ -144,3 +144,57 @@ html.proportional-layout{overflow-x:hidden}
 .folder-page-results{margin-top:24px}.content:has(.folder-page-results)>.filter-panel{padding:24px 26px}.content:has(.folder-page-results)>.filter-panel .filter-panel-title{margin-bottom:16px}.content:has(.folder-page-results)>.filter-panel p{line-height:1.95;max-width:900px;margin-bottom:22px}.content:has(.folder-page-results)>.filter-panel>button{margin-top:0;min-height:48px}.folder-list-controls{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin:18px 0 14px;font-size:14px}.folder-list-controls select{padding:8px 12px;border:1px solid #bcc6d1;border-radius:10px;background:white}.folder-entry-list{margin-top:10px}.folder-select-row{padding:16px;margin:10px 0}.folder-select-row small{margin-top:5px}
 
 .content:has(.folder-page-results)>.filter-panel p{white-space:pre-line}
+
+/* ── 2026-11 UI 피드백 반영 ───────────────────────────── */
+/* 왼쪽 메뉴: body zoom 안에서는 sticky가 풀리므로 fixed로 고정 */
+.proportional-layout aside{position:fixed;top:0;left:0;width:226px;height:var(--layout-height);overflow-y:auto;z-index:50}
+.proportional-layout main{grid-column:2}
+
+/* 용량 카드: 머리글(제목 + 버튼) / 본문(도넛 + 범례) */
+.storage-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:40px}
+.storage-card-head h3{margin:0}
+.storage-body{display:flex;align-items:center;justify-content:center;gap:24px 56px;flex-wrap:wrap;padding:8px 8px 4px}
+.storage-donut{position:relative;display:block;flex:none;margin:8px 0;background:none;border-radius:0}
+.storage-ring{display:block;width:100%;height:100%;overflow:visible}
+.storage-seg{transform-box:view-box;transform-origin:center;transition:transform .22s ease,filter .22s ease;cursor:default}
+.storage-seg:hover,.storage-seg.is-hot{transform:scale(1.07);filter:drop-shadow(0 2px 4px #191f2833)}
+.storage-hole{position:absolute;inset:0;margin:auto;background:transparent;pointer-events:none}
+.storage-legend{flex:1 1 260px;max-width:460px;min-width:200px}
+.storage-legend p{border-radius:8px;padding:3px 8px;margin:2px 0;transition:background .2s ease}
+.storage-legend p[data-part]{cursor:default}
+.storage-legend p.is-hot{background:white;box-shadow:0 1px 4px #191f2814}
+.storage-legend .storage-total{border-bottom:1px solid var(--line);border-radius:0;padding-bottom:10px;margin-bottom:8px}
+.storage-legend .storage-tiny-note{margin-top:10px;padding:0 8px}
+#storageResult .storage-body{gap:12px 24px;padding:0}
+#storageResult .storage-legend{min-width:150px}
+
+/* 검사 중: 원형 스피너 */
+#scanPanel:not([hidden]){display:flex;align-items:center;gap:16px}
+#scanPanel p{margin:4px 0 0}
+.scan-spinner{width:34px;height:34px;flex:none;border-radius:50%;border:4px solid #f6d3d8;border-top-color:#be4457;animation:scan-spin .8s linear infinite}
+@keyframes scan-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.scan-spinner{animation-duration:2.4s}.storage-seg,.storage-legend p{transition:none}}
+body:has(#reduce:checked) .scan-spinner{animation-duration:2.4s}
+body:has(#reduce:checked) .storage-seg,body:has(#reduce:checked) .storage-legend p{transition:none}
+
+/* 폴더 정리: 단계 그림 */
+.folder-steps-panel{padding:20px;border:1px solid var(--line);border-radius:16px;background:#fbfbfc;margin-bottom:16px}
+.folder-steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
+.folder-step{position:relative;display:flex;gap:12px;align-items:flex-start;background:white;border:1px solid var(--line);border-radius:14px;padding:14px}
+.folder-step:not(:last-child)::after{content:'';position:absolute;right:-20px;top:50%;width:10px;height:10px;border-top:2px solid #d99ca5;border-right:2px solid #d99ca5;transform:translateY(-50%) rotate(45deg)}
+.folder-step-icon{flex:none;display:grid;place-items:center;width:46px;height:46px;border-radius:13px;background:#ffebee;color:#b44754}
+.folder-step:nth-child(2) .folder-step-icon{background:#eaf1f7;color:#47678a}
+.folder-step:nth-child(3) .folder-step-icon{background:#eaf4ef;color:#497665}
+.folder-step-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.folder-step-text b{font-size:16px}
+.folder-step-text span{font-size:13px;color:var(--muted);line-height:1.5}
+.folder-step-no{font-size:11px;font-weight:700;letter-spacing:.06em;color:#be4457}
+.folder-steps-note{font-size:13px;color:var(--muted);margin:14px 2px 0}
+
+/* 파일 구조화: 카드 버튼을 아래쪽 같은 높이에 */
+.smart-grid .smart-card{display:flex;flex-direction:column}
+.smart-actions{margin-top:auto;padding-top:12px;display:flex;gap:8px;flex-wrap:nowrap}
+.smart-actions button{margin:0;white-space:nowrap}
+.folder-steps-panel>button{margin-top:14px}
+.smart-actions button{padding:0 14px;min-width:0}
+#storageResult .storage-hole strong{font-size:15px}

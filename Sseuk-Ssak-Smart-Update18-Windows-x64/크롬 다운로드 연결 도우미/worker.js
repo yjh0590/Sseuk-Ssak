@@ -43,7 +43,7 @@ async function authorize(msg, sender) {
     const payload=[...msg.ids].sort((a,b)=>a-b).join(',');
     if(!await crypto.subtle.verify('HMAC',key,bytes(msg.eraseProof),new TextEncoder().encode(url.href+'|'+msg.expires+'|'+payload)))throw Error('휴지통 이동을 확인한 기록만 지울 수 있어요.');
   }
-  if (!valid) throw Error("현재 앱 폴더의 chrome-helper를 다시 등록해 주세요.");
+  if (!valid) throw Error("압축을 푼 폴더의 ‘크롬 다운로드 연결 도우미’를 다시 등록해 주세요.");
 }
 chrome.runtime.onMessageExternal.addListener((msg,sender,reply)=>{
  (async()=>{

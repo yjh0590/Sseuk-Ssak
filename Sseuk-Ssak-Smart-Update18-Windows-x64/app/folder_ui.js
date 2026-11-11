@@ -10,10 +10,12 @@ async function openFolderCompare(host=null){
   bar.append(make('b','',selected.size+'개 폴더 선택'));
   btn(bar,'선택 해제',()=>{selected.clear();for(const box of content.querySelectorAll('[data-folder-choice]'))box.checked=false;updateFolderActions()});
   btn(bar,'선택한 폴더 삭제',async()=>{
-   if(busy||scanning)return;lock(true);
+   if(busy||scanning)return;
+   // In-page modal: a native confirm() would pause the keep-alive ping to the app server.
+   let preview;lock(true);try{preview=await api('folder_bulk_prepare',{ids:[...selected.keys()]})}catch(e){say(e.message);return}finally{lock(false)}
+   if(!await modal('선택한 폴더 '+preview.paths.length+'개를 휴지통으로 옮길까요?',preview.paths.join('\n')+'\n\n하위 파일과 폴더도 모두 함께 이동합니다. 내용 비교를 하지 않은 항목도 포함될 수 있습니다. 선택하지 않은 폴더는 유지됩니다.','휴지통으로 이동'))return;
+   lock(true);
    try{
-    const preview=await api('folder_bulk_prepare',{ids:[...selected.keys()]});
-    if(!confirm('선택한 폴더 '+preview.paths.length+'개를 휴지통으로 옮길까요?\n\n'+preview.paths.join('\n')+'\n\n하위 파일과 폴더도 모두 함께 이동합니다. 내용 비교를 하지 않은 항목도 포함될 수 있습니다. 선택하지 않은 폴더는 유지됩니다.'))return;
     const result=await api('folder_bulk_remove',{token:preview.token,confirmed:true});state=result.state;selected.clear();bar.replaceChildren();
     content.replaceChildren(make('p','','휴지통 이동 '+result.moved.length+'개 · 실패 '+result.failed.length+'개. 목록을 다시 찾아 주세요.'));
     for(const error of result.failed)content.append(make('p','smart-fail',error.path+' — '+error.message));say('폴더 정리가 완료되었습니다. 복원은 Windows 휴지통에서 할 수 있습니다.');
@@ -37,14 +39,14 @@ async function openFolderCompare(host=null){
  for(const item of g.items){for(const sel of [source,reference]){const o=make('option','',item.name);o.value=item.id;sel.append(o)}}reference.selectedIndex=g.items.length-1;
  const labelA=make('label','smart-field');labelA.append(make('span','','정리할 후보 폴더'),source);const labelB=make('label','smart-field');labelB.append(make('span','','남길 기준 폴더 (직접 확인해 선택)'),reference);details.append(labelA,labelB);
  const result=make('div');const compareButton=btn(details,'내용 비교',async()=>{
- compareButton.disabled=true;result.replaceChildren();try{const r=await api('folder_compare',{source:source.value,reference:reference.value});
+  if(busy||scanning)return;lock(true);say('폴더 목록과 파일 크기를 확인하고 있어요…');compareButton.disabled=true;result.replaceChildren();try{const r=await streamAction('folder_compare',{source:source.value,reference:reference.value},message=>say(message));
  result.append(make('p','','후보: '+r.source),make('p','','기준: '+r.reference),make('p','','동일 내용 '+r.same+'개 · 후보에만 '+r.only_source.length+'개 · 기준에만 '+r.only_reference.length+'개 · 내용 다름 '+r.different.length+'개'));
  const show=(title,items)=>{if(!items.length)return;const details=make('details');details.append(make('summary','',title+' ('+items.length+')'));const list=make('pre','folder-differences',items.join('\n'));details.append(list);result.append(details)};
  show('후보에만 있는 파일',r.only_source);show('기준에만 있는 파일',r.only_reference);show('같은 경로지만 내용이 다른 파일',r.different);show('후보에만 있는 폴더',r.only_source_dirs);
  result.append(make('p','',r.subset?'후보의 모든 파일·폴더가 기준에 있으며 파일 내용도 같습니다. 이동할 폴더를 다시 확인하세요.':'주의: 후보에만 있는 파일/폴더 또는 내용 차이가 있습니다. 휴지통 이동 시 해당 데이터도 함께 이동합니다.'));
  let ack=null;if(!r.subset){const label=make('label','folder-ack');ack=make('input');ack.type='checkbox';label.append(ack,document.createTextNode('차이를 확인했으며 후보 폴더 전체를 휴지통으로 옮기겠습니다.'));result.append(label)}
- const move=btn(result,'후보 폴더를 휴지통으로 이동',async()=>{if(ack&&!ack.checked){alert('먼저 폴더 차이와 확인 항목을 확인해 주세요.');return}if(!confirm('후보 폴더 전체를 휴지통으로 옮길까요?\n'+r.source+'\n\n기준 폴더는 유지됩니다.'))return;move.disabled=true;try{const v=await api('folder_remove',{token:r.token,confirmed:true,allow_unique:!!ack?.checked});state=v.state;picked.clear();issues.clear();say(v.message);if(!host)d.close();render()}catch(e){result.append(make('p','smart-fail',e.message));move.disabled=false}},'primary');
- }catch(e){result.append(make('p','smart-fail',e.message))}finally{compareButton.disabled=false}
+ const move=btn(result,'후보 폴더를 휴지통으로 이동',async()=>{if(ack&&!ack.checked){await modal('확인이 필요해요','먼저 폴더 차이와 확인 항목을 확인해 주세요.');return}if(!await modal('후보 폴더 전체를 휴지통으로 옮길까요?',r.source+'\n\n기준 폴더는 유지됩니다.','휴지통으로 이동'))return;move.disabled=true;try{const v=await api('folder_remove',{token:r.token,confirmed:true,allow_unique:!!ack?.checked});state=v.state;picked.clear();issues.clear();say(v.message);if(!host)d.close();render()}catch(e){result.append(make('p','smart-fail',e.message));move.disabled=false}},'primary');
+  }catch(e){result.append(make('p','smart-fail',e.message))}finally{lock(false);compareButton.disabled=false}
  },'outline-control');source.onchange=reference.onchange=()=>result.replaceChildren();details.append(result);content.append(card)}
  for(const error of data.errors)content.append(make('p','smart-fail',error.path+' — '+error.message));if(!host){btn(d,'닫기',()=>d.close());d.showModal()}
 }
@@ -53,7 +55,21 @@ function renderFolderPage(){
  $('#hero').replaceChildren();const hero=make('div','hero-copy');hero.append(make('h2','','정리할 폴더들이 들어 있는 위치를 선택하세요'),make('p','',state.root||'선택한 위치의 바로 아래 폴더들을 이름과 버전으로 묶어 비교합니다.'));
  btn(hero,state.root?'다른 위치 선택':'폴더 위치 선택',()=>scan(true),'primary');$('#hero').append(hero);
  $('#section').textContent='폴더 선택 및 정리';$('#tools').replaceChildren();$('#filters').replaceChildren();$('#actionbar').replaceChildren();const list=$('#list');list.replaceChildren();
- const intro=make('section','filter-panel');intro.append(make('h3','filter-panel-title','폴더 찾기 → 체크박스로 선택 → 선택한 폴더 삭제'),make('p','','삭제는 영구 삭제가 아닌 휴지통 이동입니다. 필요한 경우 목록 아래의 내용 비교를 먼저 이용하세요.\n\n각 묶음에서 날짜순·크기순을 선택할 수 있습니다. 날짜는 폴더 자체의 수정 날짜이며, 크기는 하위 파일의 합계입니다.'));list.append(intro);
+ const intro=folderSteps();list.append(intro);
  const host=make('div','folder-page-results');list.append(host);
  if(state.root)btn(intro,'비슷한 폴더 찾기',()=>openFolderCompare(host),'primary');else host.append(make('p','blank','위에서 폴더들이 들어 있는 위치를 먼저 선택해 주세요.'));
+}
+
+// 폴더 정리 순서를 아이콘 단계로 보여 준다. 아이콘은 고정 SVG 문자열.
+function folderSteps(){
+ const icon=d=>`<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+ const steps=[
+  [icon('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v2"/><path d="M3 7v10a2 2 0 0 0 2 2h6"/><circle cx="17" cy="16" r="3"/><path d="m21 20-1.8-1.8"/>'),'폴더 찾기','이름·버전이 비슷한 폴더를 묶어서 보여 줘요.'],
+  [icon('<rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8 12 3 3 5-6"/>'),'정리할 폴더 선택','남길 폴더는 두고 정리할 폴더만 체크해요. 헷갈리면 내용 비교를 먼저 해 보세요.'],
+  [icon('<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/>'),'휴지통으로 이동','영구 삭제가 아니라 휴지통으로 옮겨요. 휴지통에서 복원할 수 있어요.'],
+ ];
+ const box=make('section','folder-steps-panel');const list=make('ol','folder-steps');
+ steps.forEach(([svg,title,desc],i)=>{const li=make('li','folder-step');const ic=make('span','folder-step-icon');ic.innerHTML=svg;const text=make('div','folder-step-text');text.append(make('small','folder-step-no','STEP '+(i+1)),make('b','',title),make('span','',desc));li.append(ic,text);list.append(li)});
+ box.append(list,make('p','folder-steps-note','날짜는 폴더 자체의 수정 날짜, 크기는 하위 파일의 합계예요. 각 묶음에서 날짜순·크기순으로 정렬할 수 있어요.'));
+ return box;
 }

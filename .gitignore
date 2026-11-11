@@ -1,0 +1,13 @@
+# Created at runtime — never commit (pair.json is the Chrome helper's HMAC secret key)
+pair.json
+chrome-last-result.json
+display-backup/
+
+# Python bytecode written outside the bundled runtime
+__pycache__/
+*.pyc
+
+# 빌드 산출물: py build.py runtime / dist 로 만든다
+Sseuk-Ssak-*/app/python/
+dist/
+build/
