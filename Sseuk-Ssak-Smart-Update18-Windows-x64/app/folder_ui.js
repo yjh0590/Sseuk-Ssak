@@ -39,14 +39,14 @@ async function openFolderCompare(host=null){
  for(const item of g.items){for(const sel of [source,reference]){const o=make('option','',item.name);o.value=item.id;sel.append(o)}}reference.selectedIndex=g.items.length-1;
  const labelA=make('label','smart-field');labelA.append(make('span','','정리할 후보 폴더'),source);const labelB=make('label','smart-field');labelB.append(make('span','','남길 기준 폴더 (직접 확인해 선택)'),reference);details.append(labelA,labelB);
  const result=make('div');const compareButton=btn(details,'내용 비교',async()=>{
- compareButton.disabled=true;result.replaceChildren();try{const r=await api('folder_compare',{source:source.value,reference:reference.value});
+  if(busy||scanning)return;lock(true);say('폴더 목록과 파일 크기를 확인하고 있어요…');compareButton.disabled=true;result.replaceChildren();try{const r=await streamAction('folder_compare',{source:source.value,reference:reference.value},message=>say(message));
  result.append(make('p','','후보: '+r.source),make('p','','기준: '+r.reference),make('p','','동일 내용 '+r.same+'개 · 후보에만 '+r.only_source.length+'개 · 기준에만 '+r.only_reference.length+'개 · 내용 다름 '+r.different.length+'개'));
  const show=(title,items)=>{if(!items.length)return;const details=make('details');details.append(make('summary','',title+' ('+items.length+')'));const list=make('pre','folder-differences',items.join('\n'));details.append(list);result.append(details)};
  show('후보에만 있는 파일',r.only_source);show('기준에만 있는 파일',r.only_reference);show('같은 경로지만 내용이 다른 파일',r.different);show('후보에만 있는 폴더',r.only_source_dirs);
  result.append(make('p','',r.subset?'후보의 모든 파일·폴더가 기준에 있으며 파일 내용도 같습니다. 이동할 폴더를 다시 확인하세요.':'주의: 후보에만 있는 파일/폴더 또는 내용 차이가 있습니다. 휴지통 이동 시 해당 데이터도 함께 이동합니다.'));
  let ack=null;if(!r.subset){const label=make('label','folder-ack');ack=make('input');ack.type='checkbox';label.append(ack,document.createTextNode('차이를 확인했으며 후보 폴더 전체를 휴지통으로 옮기겠습니다.'));result.append(label)}
  const move=btn(result,'후보 폴더를 휴지통으로 이동',async()=>{if(ack&&!ack.checked){await modal('확인이 필요해요','먼저 폴더 차이와 확인 항목을 확인해 주세요.');return}if(!await modal('후보 폴더 전체를 휴지통으로 옮길까요?',r.source+'\n\n기준 폴더는 유지됩니다.','휴지통으로 이동'))return;move.disabled=true;try{const v=await api('folder_remove',{token:r.token,confirmed:true,allow_unique:!!ack?.checked});state=v.state;picked.clear();issues.clear();say(v.message);if(!host)d.close();render()}catch(e){result.append(make('p','smart-fail',e.message));move.disabled=false}},'primary');
- }catch(e){result.append(make('p','smart-fail',e.message))}finally{compareButton.disabled=false}
+  }catch(e){result.append(make('p','smart-fail',e.message))}finally{lock(false);compareButton.disabled=false}
  },'outline-control');source.onchange=reference.onchange=()=>result.replaceChildren();details.append(result);content.append(card)}
  for(const error of data.errors)content.append(make('p','smart-fail',error.path+' — '+error.message));if(!host){btn(d,'닫기',()=>d.close());d.showModal()}
 }
