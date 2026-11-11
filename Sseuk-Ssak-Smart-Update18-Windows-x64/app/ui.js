@@ -24,7 +24,12 @@ const marked=()=>rows().filter(r=>picked.has(r.id)&&eligible(r));
 function say(s){$('#status').textContent=s}
 async function api(action,data={}){
  const r=await fetch('api/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
- const result=await r.json();if(!r.ok)throw Error(result.error||'앱을 다시 실행해 주세요.');return result
+ const result=await r.json();if(!r.ok)throw Error(result.error||'앱을 다시 실행해 주세요.');
+ if(result.state_patch){
+  if(result.file_updates){const updates=new Map(result.file_updates.map(row=>[row.id,row]));state={...state,files:state.files.map(row=>updates.has(row.id)?{...row,...updates.get(row.id)}:row)}}
+  return {...state,...result.state_patch}
+ }
+ return result
 }
 function lock(on){busy=on;document.body.classList.toggle('busy',on);for(const e of document.querySelectorAll('button,input:not(#reduce)'))e.disabled=on}
 async function work(fn){if(busy||scanning)return;lock(true);try{await fn()}catch(e){say(e.message)}finally{lock(false);render()}}
@@ -71,7 +76,7 @@ function render(){
  const nav=$('nav'),emptyButton=$('#emptyRecycle');nav.replaceChildren();[0,6,5,1,2,3,4].forEach(i=>{const n=menus[i];const b=btn(nav,'',()=>switchTo(i),'navbtn'+(i===page?' active':''));b.innerHTML=icon(i);b.append(document.createTextNode(n));if(i===page)b.setAttribute('aria-current','page')});
  emptyButton.className='navbtn';emptyButton.innerHTML=icon(1);emptyButton.append(document.createTextNode('휴지통 비우기'));emptyButton.disabled=busy||scanning;nav.append(emptyButton);
  const space=$('#spaceOverview');space.hidden=!state.root||page===4;renderStorage(space,state.storage_comparison||{before:state.storage_current||[],after:[],moved:{}});
- if(state.root&&page!==4&&page!==5){btn(space,'용량 다시 측정',()=>work(async()=>{state=await api('refresh_space');say('현재 드라이브 용량을 다시 측정했어요. 이전 정리 전후 비교는 초기화했습니다.')}),'outline-control')}
+  if(state.root&&page!==4&&page!==5){btn(space,'용량 다시 측정',()=>work(async()=>{state=await api('refresh_space',{compact:true});say('현재 드라이브 용량을 다시 측정했어요. 이전 정리 전후 비교는 초기화했습니다.')}),'outline-control')}
  let resetBar=$('#resetToolbar');if(!resetBar){resetBar=make('div','reset-toolbar');resetBar.id='resetToolbar';$('.heading').append(resetBar)}resetBar.replaceChildren();
  if(page===0&&state.root){btn(resetBar,'다시 검사',()=>scan(false),'outline-control');btn(resetBar,'선택 초기화',resetFileSelection,'outline-control')}
  $('#crumb').textContent=menus[page];$('#title').textContent=titles[page];$('#sub').textContent=subtitles[page];
@@ -94,7 +99,7 @@ function render(){
   const bar=make('div','typebar');
   for(const c of ['전체',...Object.keys(typeGroups),'기타'])btn(bar,c,()=>{category=c;extension='';picked.clear();render()},'chip'+(c===category?' on':''));
   const select=make('select');select.setAttribute('aria-label','확장자 필터');
-  for(const e of ['',...new Set([...Object.values(typeGroups).flat(),'html','htm','js','ts','tsx','jsx','css','py','json','md',...(state.extensions||[]),...state.files.map(ext).filter(Boolean)])].sort()){
+  for(const e of ['',...new Set([...Object.values(typeGroups).flat(),'html','htm','js','ts','tsx','jsx','css','py','json','md',...(state.extensions||[])])].sort()){
    const option=make('option','',e?'.'+e:'모든 확장자');option.value=e;select.append(option);
   }
   select.value=extension;select.onchange=()=>{extension=select.value;picked.clear();render()};select.disabled=busy;bar.append(select);
@@ -115,7 +120,8 @@ function render(){
   }
  }
  const shown=sortRows(items).slice(0,limit),shownEligible=shown.filter(eligible),moreHidden=items.length>shown.length;
- if(page!==2&&items.length&&filterAllowed())btn(tools,picked.size?'선택 해제':(page===0&&filter==='같은 이름'?'남길 파일 제외하고 선택':'전체 선택')+(moreHidden?' (화면의 '+shownEligible.length+'개)':''),()=>{picked=picked.size?new Set():new Set(shownEligible.map(r=>r.id));render()});
+  const selectionLabel=(page===0&&filter==='같은 이름'?'남길 파일 제외하고 선택':'전체 선택')+(moreHidden?' (화면의 '+shownEligible.length+'개)':'');
+  const selectionButton=page!==2&&items.length&&filterAllowed()?btn(tools,picked.size?'선택 해제':selectionLabel,()=>{picked=picked.size?new Set():new Set(shownEligible.map(r=>r.id));render()}):null;
  if(page===2){
   const back=btn(tools,'← 뒤로',()=>navigateHistory(-1));back.disabled=busy||historyPosition<=0;
   const forward=btn(tools,'앞으로 →',()=>navigateHistory(1));forward.disabled=busy||historyPosition>=historyPaths.length-1;
@@ -134,11 +140,11 @@ function render(){
  else if(!state.root&&page===0){guide(5,'복사본','이름이 달라도 내용이 같은 파일을 찾아요.');guide(3,'풀어둔 ZIP','압축을 푼 폴더에 모든 파일이 있는지 비교해요.');guide(0,'작업 버전','초안과 최종본을 같은 묶음에서 살펴봐요.')}
  else if(!items.length){list.append(make('p','blank',page===1&&!checked.has('junk')?'정크 파일 찾기를 눌러 검사를 시작하세요.':page===3?'보관한 파일이 여기에 표시돼요.':page===2?'검사하면 폴더별 용량을 볼 수 있어요.':'현재 분류에 표시할 파일이 없어요.'))}
  else{
- let group='';
+  let group='';const groupCounts=new Map();for(const item of items)if(item.group)groupCounts.set(item.group,(groupCounts.get(item.group)||0)+1);
  for(const r of shown){
- if(r.group&&r.group!==group){group=r.group;list.append(make('h3','group',group.split(/[\\/]/).pop().replace(/\s*\(\d+\)(?=\.[^.]+$|$)/,'')+' · '+items.filter(x=>x.group===group).length+'개 버전'))}
+  if(r.group&&r.group!==group){group=r.group;list.append(make('h3','group',group.split(/[\\/]/).pop().replace(/\s*\(\d+\)(?=\.[^.]+$|$)/,'')+' · '+groupCounts.get(group)+'개 버전'))}
  const row=make('div','row'+(picked.has(r.id)?' selected':''));if(r.id)row.dataset.id=r.id;
- if(filterAllowed()&&eligible(r)){let box=make('input');box.type='checkbox';box.checked=picked.has(r.id);box.setAttribute('aria-label',r.name+' 선택');box.onchange=()=>{if(box.checked)picked.add(r.id);else picked.delete(r.id);row.classList.toggle('selected',box.checked);render()};row.onclick=e=>{if(!busy&&e.target!==box&&!e.target.closest('button'))box.click()};row.append(box)}
+  if(filterAllowed()&&eligible(r)){let box=make('input');box.type='checkbox';box.checked=picked.has(r.id);box.setAttribute('aria-label',r.name+' 선택');box.onchange=()=>{if(box.checked)picked.add(r.id);else picked.delete(r.id);row.classList.toggle('selected',box.checked);footer();if(selectionButton)selectionButton.textContent=picked.size?'선택 해제':selectionLabel;if(page===2){const all=filters.querySelector('.rank-select-all input');all.checked=!!shownEligible.length&&shownEligible.every(r=>picked.has(r.id));all.indeterminate=shownEligible.some(r=>picked.has(r.id))&&!all.checked}};row.onclick=e=>{if(!busy&&e.target!==box&&!e.target.closest('button'))box.click()};row.append(box)}
  else{row.append(tile(r.folder?0:5));row.tabIndex=0;row.onclick=()=>r.folder?enter(r.path):reveal(r.path);row.onkeydown=e=>{if(e.key==='Enter')row.click()}}
  const t=make('div','text'),p=make('small','',r.path);p.title=r.path;t.append(make('b','',r.name),p);
  const problem=issues.get(r.path);t.append(make('em',problem?'error':'',problem||[r.note,r.date,r.folder?r.count+'개 파일':''].filter(Boolean).join(' · ')));row.append(t,make('div','amount',fmt(r.size)));
@@ -158,7 +164,7 @@ function render(){
   for(const control of document.querySelectorAll('#hero button,#actionbar button,#list input,#list button:not(.more),#tools button'))control.disabled=true;
  }
 }
-async function setKeeper(value){await work(async()=>{state=await api('keeper',value);picked.clear();issues.clear();say('남길 파일을 갱신했어요. 정리할 파일을 선택하세요.')})}
+async function setKeeper(value){await work(async()=>{state=await api('keeper',{...value,compact:true});picked.clear();issues.clear();say('남길 파일을 갱신했어요. 정리할 파일을 선택하세요.')})}
 function sortRows(items){
  const ordered=items.slice();
  if(page===0&&['같은 이름','작업 버전','변환 파일'].includes(filter))ordered.sort((a,b)=>a.group.localeCompare(b.group,'ko')||(filter==='같은 이름'?Number(b.protected)-Number(a.protected):0)||b.size-a.size);

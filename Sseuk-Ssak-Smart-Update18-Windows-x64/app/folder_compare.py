@@ -43,23 +43,34 @@ class FolderCompare:
                     entry['size']=None;entry['modified']=None;entry['measure_error']=str(exc)
         return {'groups':visible,'errors':errors,'root':str(root)}
 
-    def manifest(self,item):
+    def manifest(self,item, candidates=None, progress=lambda message: None):
         paths={};dirs=set()
         for rel,(isdir,stamp) in item.tree.items():
             if isdir:
                 dirs.add(rel);continue
+            if candidates is not None and rel not in candidates:
+                paths[rel]=('size',stamp[0]);continue
             path=item.path/rel
+            progress('내용 비교 · '+path.name)
             h=hashlib.sha256()
             with path.open('rb') as f:
                 for block in iter(lambda:f.read(1024*1024),b''):h.update(block)
             paths[rel]=h.hexdigest()
         return paths,dirs
 
-    def compare(self, source_id, reference_id):
+    def manifests(self, src, ref, progress=lambda message: None):
+        # Only shared paths of equal size need content reads. Unique paths and
+        # unequal sizes are already proven different by the captured outline.
+        candidates={rel for rel,(isdir,stamp) in src.tree.items()
+                    if not isdir and rel in ref.tree and not ref.tree[rel][0]
+                    and stamp[0]==ref.tree[rel][1][0]}
+        return self.manifest(src,candidates,progress),self.manifest(ref,candidates,progress)
+
+    def compare(self, source_id, reference_id, progress=lambda message: None):
         if source_id==reference_id:raise ValueError('비교할 폴더를 서로 다르게 선택해 주세요.')
         if source_id not in self.items or reference_id not in self.items:raise ValueError('폴더를 다시 찾아 주세요.')
         src=folder_ops.capture(self.root,self.items[source_id]['path']);ref=folder_ops.capture(self.root,self.items[reference_id]['path'])
-        a,ad=self.manifest(src);b,bd=self.manifest(ref)
+        (a,ad),(b,bd)=self.manifests(src,ref,progress)
         folder_ops.validate(self.root,src);folder_ops.validate(self.root,ref)
         only_source=sorted(a.keys()-b.keys());only_reference=sorted(b.keys()-a.keys());different=sorted(k for k in a.keys()&b.keys() if a[k]!=b[k]);same=sum(a[k]==b[k] for k in a.keys()&b.keys())
         token=secrets.token_hex(16);self.comparisons[token]=(src,ref,only_source,different,ad-bd)
@@ -72,11 +83,11 @@ class FolderCompare:
         if (only or different or dirs) and allow_unique is not True:raise ValueError('이 폴더에만 있는 파일과 차이를 확인해 주세요.')
         folder_ops.validate(self.root,src);folder_ops.validate(self.root,ref)
         # Rehash as well: timestamps alone cannot establish unchanged content.
-        a,ad=self.manifest(src);b,bd=self.manifest(ref)
+        (a,ad),(b,bd)=self.manifests(src,ref)
         if sorted(a.keys()-b.keys())!=only or sorted(k for k in a.keys()&b.keys() if a[k]!=b[k])!=different or ad-bd!=dirs:raise ValueError('비교 결과가 달라졌습니다. 다시 비교해 주세요.')
         folder_ops.validate(self.root,src);folder_ops.validate(self.root,ref)
         recycle(src.path);self.comparisons.clear()
-        return {'message':'선택한 폴더를 휴지통으로 이동했습니다. 기준 폴더는 유지했습니다.'}
+        return {'message':'선택한 폴더를 휴지통으로 이동했습니다. 기준 폴더는 유지했습니다.','moved':[str(src.path)]}
 
 
     def prepare_bulk(self, ids):

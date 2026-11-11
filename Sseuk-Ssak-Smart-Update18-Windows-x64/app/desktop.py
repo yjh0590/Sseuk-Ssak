@@ -8,7 +8,7 @@ import subprocess
 import sys
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import chrome_link
@@ -74,6 +74,7 @@ class App:
     """One desktop session. Every UI request goes through dispatch()."""
 
     def __init__(self):
+        self.request_lock = threading.Lock()
         self.smart = SmartService()
         self.folder_compare = FolderCompare()
         self.refs = {}
@@ -89,7 +90,7 @@ class App:
             'folder_find': self.on_folder_find,
             'folder_bulk_prepare': lambda v, progress: self.folder_compare.prepare_bulk(v.get('ids')),
             'folder_bulk_remove': self.on_folder_bulk_remove,
-            'folder_compare': lambda v, progress: self.folder_compare.compare(v['source'], v['reference']),
+            'folder_compare': lambda v, progress: self.folder_compare.compare(v['source'], v['reference'], progress),
             'folder_remove': self.on_folder_remove,
             'grouping': self.on_grouping,
             'keeper': self.on_keeper,
@@ -122,6 +123,7 @@ class App:
         self.word_mode = 'off'
         self.word_keyword = ''
         self.similar_names = False
+        self.file_views = []
         self.refs.clear()
 
     def dispatch(self, action, v, progress=lambda event: None):
@@ -130,7 +132,12 @@ class App:
             raise ValueError('작업을 찾지 못했어요.')
         if self.chrome_job and self.chrome_job.is_alive() and action not in ('init', 'chrome_status'):
             raise ValueError('크롬 다운로드 정리가 끝난 뒤 다시 시도해 주세요.')
-        return handler(v, progress)
+        if not self.request_lock.acquire(blocking=False):
+            raise ValueError('진행 중인 작업이 끝난 뒤 다시 시도해 주세요.')
+        try:
+            return handler(v, progress)
+        finally:
+            self.request_lock.release()
 
     # --- shared helpers -------------------------------------------------
 
@@ -165,6 +172,7 @@ class App:
                     'date': stamp_text(r.stamp[1] / 1e9),
                     'protected': r.kind == '같은 이름' and not r.keep}
                  for r in self.rows]
+        self.file_views = files
         temp = [self.pack(r.path, r.stamp[0], r.reason, '정크 파일', r) for r in self.junks]
         saved = []
         for p, d in self.stash:
@@ -193,8 +201,21 @@ class App:
                 continue
         return None
 
-    def rescan_files(self, result):
-        self.collect('files', lambda _: None)
+    def update_after_folder_removal(self, result):
+        gone = {Path(p) for p in result.get('moved', [])}
+        def removed(path):
+            return path in gone or any(parent in gone for parent in path.parents)
+        self.raw_rows = [r for r in self.raw_rows if not removed(r.path) and not (r.keep and removed(r.keep))]
+        self.rows = choose([r for r in self.rows if not removed(r.path) and not (r.keep and removed(r.keep))], self.keeper_mode, self.overrides)
+        self.junks = [r for r in self.junks if not removed(r.path)]
+        self.stash = [(p,d) for p,d in self.stash if not removed(p)]
+        if self.index:
+            dirs = {d for d in self.index[0][0] if not removed(d)}
+            files = {r.path:r.stamp for r in self.rows if r.kind == '전체 파일'}
+            self.index = [folder_index(self.root,dirs,files)]
+        for key in [k for k,(kind,_) in self.refs.items() if kind == FOLDER_SIZE]:
+            del self.refs[key]
+        self.last_storage = None
         result['state'] = self.snapshot()
         return result
 
@@ -212,6 +233,8 @@ class App:
 
     def on_refresh_space(self, v, progress):
         self.last_storage = None
+        if v.get('compact'):
+            return {'state_patch': {'storage_current': storage_view.measure([self.root]) if self.root else [], 'storage_comparison': None}}
         return self.snapshot(storage_view.measure([self.root]) if self.root else [])
 
     def on_folder_find(self, v, progress):
@@ -220,10 +243,10 @@ class App:
         return self.folder_compare.scan(self.root)
 
     def on_folder_bulk_remove(self, v, progress):
-        return self.rescan_files(self.folder_compare.execute_bulk(v.get('token'), v.get('confirmed'), recycle))
+        return self.update_after_folder_removal(self.folder_compare.execute_bulk(v.get('token'), v.get('confirmed'), recycle))
 
     def on_folder_remove(self, v, progress):
-        return self.rescan_files(self.folder_compare.move(v['token'], v.get('confirmed'), v.get('allow_unique'), recycle))
+        return self.update_after_folder_removal(self.folder_compare.move(v['token'], v.get('confirmed'), v.get('allow_unique'), recycle))
 
     def on_grouping(self, v, progress):
         mode = v.get('word_mode', 'off')
@@ -240,6 +263,7 @@ class App:
         return self.snapshot()
 
     def on_keeper(self, v, progress):
+        group = None
         if 'mode' in v:
             if v['mode'] not in KEEPER_MODES:
                 raise ValueError('남길 기준을 다시 선택해 주세요.')
@@ -250,9 +274,27 @@ class App:
             if signature(row.path) != self.keeper_stamps.get(row.path):
                 raise ValueError('파일이 바뀌었어요. 다시 검사해 주세요.')
             self.overrides[row.group] = row.path
+            group = row.group
         else:
             raise ValueError('같은 이름 목록에서 남길 파일을 골라 주세요.')
-        self.rows = choose(self.rows, self.keeper_mode, self.overrides)
+        if group is None:
+            self.rows = choose(self.rows, self.keeper_mode, self.overrides)
+        else:
+            updated = {r.path:r for r in choose([r for r in self.rows if r.kind == '같은 이름' and r.group == group], self.keeper_mode, self.overrides)}
+            self.rows = [updated.get(r.path,r) if r.kind == '같은 이름' and r.group == group else r for r in self.rows]
+        if v.get('compact') and self.file_views:
+            updated = {r.path:r for r in self.rows if r.kind == '같은 이름' and (group is None or r.group == group)}
+            patches = []
+            for view in self.file_views:
+                if view['kind'] != '같은 이름':
+                    continue
+                row = updated.get(Path(view['path']))
+                if row is None:
+                    continue
+                patch = dict(id=view['id'], note=row.detail, compare=str(row.keep or ''), protected=not row.keep)
+                self.refs[view['id']] = (row.kind,row)
+                patches.append(patch)
+            return {'state_patch': {'keeper_mode': self.keeper_mode}, 'file_updates': patches}
         return self.snapshot()
 
     def on_scan(self, v, progress):
@@ -484,7 +526,7 @@ class App:
 
 def make_handler(app, token, host, origin):
     prefix = '/' + token + '/'
-    streamed = ('apply', 'scan')
+    streamed = ('apply', 'scan', 'folder_compare')
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -533,8 +575,15 @@ def make_handler(app, token, host, origin):
             self.send_header('X-Frame-Options', 'DENY')
             self.end_headers()
             self.close_connection = True
+            last_progress = 0.0
 
             def event(value):
+                nonlocal last_progress
+                if action == 'folder_compare' and 'progress' in value:
+                    now = time.monotonic()
+                    if now - last_progress < 0.25:
+                        return
+                    last_progress = now
                 try:
                     self.wfile.write((json.dumps(value) + '\n').encode())
                     self.wfile.flush()
@@ -558,14 +607,16 @@ def start():
         raise RuntimeError('이 버전은 Google Chrome이 필요해요. Chrome 설치 후 다시 실행해 주세요.')
     app = App()
     token = secrets.token_urlsafe(32)
-    with HTTPServer(('127.0.0.1', 0), BaseHTTPRequestHandler) as server:
+    with ThreadingHTTPServer(('127.0.0.1', 0), BaseHTTPRequestHandler) as server:
         host = f'127.0.0.1:{server.server_port}'
         origin = 'http://' + host
         server.RequestHandlerClass = make_handler(app, token, host, origin)
         server.timeout = 3
         subprocess.Popen([str(chrome), '--app=' + origin + '/' + token + '/'])
         last = time.monotonic()
-        while time.monotonic() - last < IDLE_SECONDS:
+        while app.request_lock.locked() or time.monotonic() - last < IDLE_SECONDS:
+            if app.request_lock.locked():
+                last = time.monotonic()
             if select.select([server], [], [], 3)[0]:
                 server.handle_request()
                 last = time.monotonic()

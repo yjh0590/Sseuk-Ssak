@@ -1,5 +1,7 @@
 import tempfile
+import os
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from folder_compare import FolderCompare
 
@@ -30,5 +32,22 @@ class FolderTests(unittest.TestCase):
   with self.assertRaises(ValueError):self.c.move('invalid',True,True,lambda p:None)
  def test_no_cross_parent(self):
   (self.root/'Other-v1.0').mkdir();(self.root/'Other-v1.0'/'App-v1.2').mkdir();self.assertEqual(len(self.c.scan(self.root)['groups']),1)
+
+ def test_only_shared_equal_size_files_are_read(self):
+  for folder in (self.a,self.b):(folder/'same.txt').write_text('same')
+  (self.a/'unique.txt').write_text('unique')
+  (self.a/'size.txt').write_text('a');(self.b/'size.txt').write_text('longer')
+  a,b=self.ids();opened=[];original=Path.open
+  def record(path,*args,**kwargs):
+   opened.append(path);return original(path,*args,**kwargs)
+  with patch.object(Path,'open',record):r=self.c.compare(a,b)
+  self.assertEqual(set(opened),{self.a/'same.txt',self.b/'same.txt'})
+  self.assertEqual(r['same'],1);self.assertEqual(r['different'],['size.txt']);self.assertEqual(r['only_source'],['unique.txt'])
+
+ def test_content_is_rechecked_even_when_timestamp_is_preserved(self):
+  for folder in (self.a,self.b):(folder/'same.txt').write_bytes(b'aaaa')
+  a,b=self.ids();r=self.c.compare(a,b)
+  path=self.a/'same.txt';stamp=path.stat();path.write_bytes(b'bbbb');os.utime(path,ns=(stamp.st_atime_ns,stamp.st_mtime_ns))
+  with self.assertRaises(ValueError):self.c.move(r['token'],True,False,lambda p:self.fail('must not move'))
 
 if __name__=='__main__':unittest.main()
